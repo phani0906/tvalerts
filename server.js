@@ -1,36 +1,22 @@
-const express = require("express");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
 const app = express();
-const path = require("path");
+const server = http.createServer(app);
+const io = new Server(server); // ✅ this serves the client automatically
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const alerts = [];
-
-// Receive webhook from TradingView
-app.post("/webhook", (req, res) => {
-    const alert = req.body;
-    console.log("Received alert:", alert);
-    alerts.push(alert);
-    res.status(200).send("Alert received");
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
 });
 
-// Serve alerts on web page
-app.get("/scanner", (req, res) => {
-    let html = `<h1>Welcome to TradingView Scanner!</h1>`;
-    if (alerts.length === 0) {
-        html += `<p>No alerts yet.</p>`;
-    } else {
-        html += `<h2>Received Alerts:</h2>`;
-        html += alerts.map(a => `<p>${JSON.stringify(a)}</p>`).join("");
-    }
-    res.send(html);
+io.on('connection', (socket) => {
+    console.log('Client connected');
+    socket.emit('newAlert', []); // send initial empty alerts
+    socket.on('disconnect', () => console.log('Client disconnected'));
 });
 
-// Listen on Render-assigned port
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    const localhostURL = `http://localhost:${PORT}/scanner`;
-    const renderURL = process.env.RENDER_EXTERNAL_URL || "not deployed";
-    console.log(`Server running at:\n- Local: ${localhostURL}\n- Render: ${renderURL}`);
-});
+server.listen(786, () => console.log('Server running on http://localhost:786'));

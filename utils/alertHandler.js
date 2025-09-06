@@ -25,14 +25,22 @@ function writeAlerts(alerts) {
     }
 }
 
+// Helper: get current time in HH:MM format
+function getCurrentTime() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
 // Main initializer
 function initAlertHandler(app, io) {
     // Keep connected clients in sync
     io.on('connection', (socket) => {
         console.log('Client connected');
 
-        // Send current alerts on connect
-        const alerts = Object.values(readAlerts());
+        const alerts = Object.values(readAlerts())
+            .sort((a, b) => b.timestamp.localeCompare(a.timestamp)); // descending
         socket.emit('newAlert', alerts);
 
         socket.on('disconnect', () => console.log('Client disconnected'));
@@ -54,27 +62,25 @@ function initAlertHandler(app, io) {
                 AI_5m: '',
                 AI_15m: '',
                 AI_1h: '',
-                timestamp: '' // only for 5m
+                timestamp: '' // only one timestamp per ticker
             };
         }
 
         // Update relevant column
         alertsData[Ticker][Timeframe] = Alert;
 
-        // Update timestamp only for 5m alerts
-        if (Timeframe === 'AI_5m') {
-            const now = new Date();
-            const timestamp =
-                now.getHours().toString().padStart(2, '0') + ':' +
-                now.getMinutes().toString().padStart(2, '0');
-            alertsData[Ticker].timestamp = timestamp;
+        // Update timestamp if not present
+        if (!alertsData[Ticker].timestamp || Timeframe === 'AI_5m' || Timeframe === 'AI_15m' || Timeframe === 'AI_1h') {
+            alertsData[Ticker].timestamp = getCurrentTime();
         }
 
         // Save to alerts.json
         writeAlerts(alertsData);
 
-        // Emit to all clients
-        io.emit('newAlert', Object.values(alertsData));
+        // Emit sorted alerts to all clients
+        const sortedAlerts = Object.values(alertsData)
+            .sort((a, b) => b.timestamp.localeCompare(a.timestamp)); // descending
+        io.emit('newAlert', sortedAlerts);
 
         res.sendStatus(200);
     });

@@ -1,30 +1,86 @@
 {
   "MU": {
     "Ticker": "MU",
-    "AI_5m": "",
-    "AI_15m": "",
+    "AI_5m": "Sell",
+    "AI_15m": "Sell",
     "AI_1h": "Sell",
-    "timestamp": ""
+    "timestamp": "15:07"
   },
   "AMAT": {
     "Ticker": "AMAT",
     "AI_5m": "Sell",
-    "AI_15m": "",
-    "AI_1h": "",
-    "timestamp": "15:05"
+    "AI_15m": "Sell",
+    "AI_1h": "Buy",
+    "timestamp": "15:09"
   },
   "ANET": {
     "Ticker": "ANET",
     "AI_5m": "",
-    "AI_15m": "Sell",
-    "AI_1h": "",
-    "timestamp": ""
+    "AI_15m": "Buy",
+    "AI_1h": "Buy",
+    "timestamp": "15:09"
   },
   "NVDA": {
     "Ticker": "NVDA",
-    "AI_5m": "Buy",
+    "AI_5m": "Sell",
     "AI_15m": "",
+    "AI_1h": "Sell",
+    "timestamp": "15:09"
+  },
+  "AFRM": {
+    "Ticker": "AFRM",
+    "AI_5m": "Buy",
+    "AI_15m": "Buy",
+    "AI_1h": "Sell",
+    "timestamp": "15:07"
+  },
+  "HOOD": {
+    "Ticker": "HOOD",
+    "AI_5m": "Buy",
+    "AI_15m": "Sell",
+    "AI_1h": "Buy",
+    "timestamp": "15:07"
+  },
+  "FIVE": {
+    "Ticker": "FIVE",
+    "AI_5m": "",
+    "AI_15m": "Buy",
     "AI_1h": "",
-    "timestamp": "15:05"
+    "timestamp": "15:09"
+  },
+  "MRVL": {
+    "Ticker": "MRVL",
+    "AI_5m": "Sell",
+    "AI_15m": "Buy",
+    "AI_1h": "Buy",
+    "timestamp": "15:08"
+  },
+  "MP": {
+    "Ticker": "MP",
+    "AI_5m": "Sell",
+    "AI_15m": "Buy",
+    "AI_1h": "Sell",
+    "timestamp": "15:10"
+  },
+  "HIMS": {
+    "Ticker": "HIMS",
+    "AI_5m": "Buy",
+    "AI_15m": "Buy",
+    "AI_1h": "Sell",
+    "timestamp": "15:09"
+  },
+  "AMD": {
+    "Ticker": "AMD",
+    "AI_5m": "Sell",
+    "AI_15m": "Sell",
+    "AI_1h": "Sell",
+    "timestamp": "15:08"
+  },
+  "PLTR": {
+    "Ticker": "PLTR",
+    "AI_5m": "Sell",
+    "AI_15m": "",
+    "AI_1h": "Buy",
+    "timestamp": "15:10"
   }
 }

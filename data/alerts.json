@@ -2,85 +2,85 @@
   "MU": {
     "Ticker": "MU",
     "AI_5m": "Buy",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "timestamp": "19:18"
+    "AI_15m": "Buy",
+    "AI_1h": "Buy",
+    "timestamp": "19:31"
   },
   "AMAT": {
     "Ticker": "AMAT",
-    "AI_5m": "Buy",
-    "AI_15m": "Sell",
+    "AI_5m": "Sell",
+    "AI_15m": "Buy",
     "AI_1h": "Buy",
-    "timestamp": "19:17"
+    "timestamp": "19:30"
   },
   "ANET": {
     "Ticker": "ANET",
     "AI_5m": "Sell",
-    "AI_15m": "Sell",
-    "AI_1h": "Buy",
-    "timestamp": "19:18"
+    "AI_15m": "Buy",
+    "AI_1h": "Sell",
+    "timestamp": "19:31"
   },
   "NVDA": {
     "Ticker": "NVDA",
-    "AI_5m": "Buy",
+    "AI_5m": "Sell",
     "AI_15m": "Buy",
     "AI_1h": "Sell",
-    "timestamp": "19:17"
+    "timestamp": "19:28"
   },
   "AFRM": {
     "Ticker": "AFRM",
-    "AI_5m": "Sell",
+    "AI_5m": "Buy",
     "AI_15m": "Sell",
-    "AI_1h": "Buy",
-    "timestamp": "19:18"
+    "AI_1h": "Sell",
+    "timestamp": "19:31"
   },
   "HOOD": {
     "Ticker": "HOOD",
     "AI_5m": "Sell",
-    "AI_15m": "Sell",
+    "AI_15m": "Buy",
     "AI_1h": "Buy",
-    "timestamp": "19:18"
+    "timestamp": "19:31"
   },
   "FIVE": {
     "Ticker": "FIVE",
     "AI_5m": "Sell",
-    "AI_15m": "Buy",
-    "AI_1h": "Buy",
-    "timestamp": "19:19"
+    "AI_15m": "Sell",
+    "AI_1h": "Sell",
+    "timestamp": "19:31"
   },
   "MRVL": {
     "Ticker": "MRVL",
-    "AI_5m": "Sell",
-    "AI_15m": "Buy",
-    "AI_1h": "Sell",
-    "timestamp": "19:18"
+    "AI_5m": "Buy",
+    "AI_15m": "Sell",
+    "AI_1h": "Buy",
+    "timestamp": "19:30"
   },
   "MP": {
     "Ticker": "MP",
-    "AI_5m": "Sell",
-    "AI_15m": "Buy",
+    "AI_5m": "Buy",
+    "AI_15m": "Sell",
     "AI_1h": "Buy",
-    "timestamp": "19:17"
+    "timestamp": "19:30"
   },
   "HIMS": {
     "Ticker": "HIMS",
     "AI_5m": "Sell",
     "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "timestamp": "19:18"
+    "AI_1h": "Buy",
+    "timestamp": "19:31"
   },
   "AMD": {
     "Ticker": "AMD",
-    "AI_5m": "Sell",
+    "AI_5m": "Buy",
     "AI_15m": "Buy",
     "AI_1h": "Sell",
-    "timestamp": "19:18"
+    "timestamp": "19:31"
   },
   "PLTR": {
     "Ticker": "PLTR",
     "AI_5m": "Sell",
-    "AI_15m": "Sell",
+    "AI_15m": "Buy",
     "AI_1h": "Buy",
-    "timestamp": "19:18"
+    "timestamp": "19:30"
   }
 }

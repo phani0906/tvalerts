@@ -1,5 +1,7 @@
-const socket = io();
+// scanner.js
+const socket = io(); // connect to server
 
+// Pivot Rel color mapping
 function getPivotRelColor(value) {
     switch (value) {
         case "HV":
@@ -18,6 +20,7 @@ function getPivotRelColor(value) {
     }
 }
 
+// Trend arrow mapping
 function getTrendArrow(value) {
     if (!value) return "No value";
     value = value.toLowerCase();
@@ -26,6 +29,7 @@ function getTrendArrow(value) {
     return { arrow: "→", className: "" };
 }
 
+// AI5m color mapping
 function getAISignalColor(signal) {
     if (!signal) return "white";
     if (signal.toLowerCase() === "buy") return "lime";
@@ -33,9 +37,11 @@ function getAISignalColor(signal) {
     return "white";
 }
 
+// Create a table row for one alert
 function createRow(data) {
     const tr = document.createElement("tr");
 
+    // Only 11 TDs to match table headers
     const timeTd = document.createElement("td");
     timeTd.textContent = data.timestamp || "No value";
 
@@ -56,16 +62,6 @@ function createRow(data) {
     ai5Td.textContent = data.AI_5m || "No value";
     ai5Td.style.color = getAISignalColor(data.AI_5m);
     ai5Td.style.fontWeight = "bold";
-
-    const ai15Td = document.createElement("td");
-    ai15Td.textContent = data.AI_15m || "No value";
-    ai15Td.style.color = getAISignalColor(data.AI_15m);
-    ai15Td.style.fontWeight = "bold";
-
-    const ai1hTd = document.createElement("td");
-    ai1hTd.textContent = data.AI_1h || "No value";
-    ai1hTd.style.color = getAISignalColor(data.AI_1h);
-    ai1hTd.style.fontWeight = "bold";
 
     const priceTd = document.createElement("td");
     priceTd.textContent = data.Price || "No value";
@@ -91,8 +87,6 @@ function createRow(data) {
         pivotTd,
         trendTd,
         ai5Td,
-        ai15Td,
-        ai1hTd,
         priceTd,
         dayMidTd,
         weeklyMidTd,
@@ -104,14 +98,16 @@ function createRow(data) {
     return tr;
 }
 
-// Listen for alerts
+// Listen for new alerts from server
 socket.on("newAlert", (alerts) => {
     const tbodyBuy = document.querySelector("#scannerTableBuy tbody");
     const tbodySell = document.querySelector("#scannerTableSell tbody");
 
+    // Clear previous rows
     tbodyBuy.innerHTML = "";
     tbodySell.innerHTML = "";
 
+    // Add new rows
     alerts.forEach((data) => {
         if (data.AI_5m && data.AI_5m.toLowerCase() === "buy") {
             tbodyBuy.appendChild(createRow(data));

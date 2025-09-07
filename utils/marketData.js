@@ -1,40 +1,45 @@
+const fs = require('fs');
+const path = require('path');
 const yahooFinance = require('yahoo-finance2').default;
 
-// Suppress survey notice for cleaner logs
-yahooFinance.suppressNotices(['yahooSurvey']);
+const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
 
-async function fetchMarketData(tickers) {
-    const results = {};
-
-    for (const ticker of tickers) {
-        try {
-            const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price', 'summaryDetail'] });
-            results[ticker] = {
-                Price: quote.price?.regularMarketPrice || 'No value',
-                DayMid: quote.summaryDetail?.dayLow && quote.summaryDetail?.dayHigh 
-                        ? ((quote.summaryDetail.dayLow + quote.summaryDetail.dayHigh)/2).toFixed(2)
-                        : 'No value',
-                WeeklyMid: quote.summaryDetail?.fiftyTwoWeekLow && quote.summaryDetail?.fiftyTwoWeekHigh 
-                            ? ((quote.summaryDetail.fiftyTwoWeekLow + quote.summaryDetail.fiftyTwoWeekHigh)/2).toFixed(2)
-                            : 'No value',
-                MA20: quote.summaryDetail?.fiftyDayAverage || 'No value',
-                NCPR: 'No value',  // Placeholder
-                Pivot: 'No value', // Placeholder
-            };
-        } catch (err) {
-            console.error(`Error fetching market data for ${ticker}:`, err.message);
-            results[ticker] = {
-                Price: 'Error',
-                DayMid: 'Error',
-                WeeklyMid: 'Error',
-                MA20: 'Error',
-                NCPR: 'Error',
-                Pivot: 'Error',
-            };
-        }
+async function fetchPrice(ticker) {
+    try {
+        const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price', 'summaryDetail'] });
+        return {
+            Price: quote.price?.regularMarketPrice || 'N/A',
+            DayMid: quote.summaryDetail?.dayLow && quote.summaryDetail?.dayHigh
+                ? ((quote.summaryDetail.dayLow + quote.summaryDetail.dayHigh)/2).toFixed(2)
+                : 'N/A',
+            WeeklyMid: quote.summaryDetail?.fiftyTwoWeekLow && quote.summaryDetail?.fiftyTwoWeekHigh
+                ? ((quote.summaryDetail.fiftyTwoWeekLow + quote.summaryDetail.fiftyTwoWeekHigh)/2).toFixed(2)
+                : 'N/A',
+            MA20: quote.summaryDetail?.fiftyDayAverage || 'N/A'
+        };
+    } catch (err) {
+        console.error(`Error fetching ${ticker}:`, err.message);
+        return { Price: 'Error', DayMid: 'Error', WeeklyMid: 'Error', MA20: 'Error' };
     }
-
-    return results;
 }
 
-module.exports = { fetchMarketData };
+function startMarketDataUpdater(io) {
+    setInterval(async () => {
+        if (!fs.existsSync(alertsFilePath)) return;
+        const data = fs.readFileSync(alertsFilePath, 'utf8').trim();
+        if (!data) return;
+
+        let alerts = JSON.parse(data);
+        const tickers = alerts.map(a => a.Ticker);
+
+        const priceUpdates = {};
+        for (const ticker of tickers) {
+            priceUpdates[ticker] = await fetchPrice(ticker);
+        }
+
+        io.emit('priceUpdate', priceUpdates);
+
+    }, 5000); // update every 5 seconds
+}
+
+module.exports = { startMarketDataUpdater };

@@ -1,22 +1,20 @@
 const express = require('express');
 const http = require('http');
-const path = require('path');
-const { Server } = require('socket.io');
 const { initAlertHandler } = require('./utils/alertHandler');
-
+const { startMarketDataUpdater } = require('./utils/marketData');
+const path = require('path');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server); // Socket.IO server
+const io = require('socket.io')(server);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize alert handler and pass Socket.IO instance
+// Initialize alert handler
 initAlertHandler(app, io);
 
-// Serve scanner.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
-});
+// Start live market data updates
+startMarketDataUpdater(io);
 
-server.listen(786, () => console.log('Server running on http://localhost:786'));
+const PORT = 786;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

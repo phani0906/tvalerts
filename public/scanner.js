@@ -1,51 +1,59 @@
 const socket = io();
 
-const tableBuy = document.querySelector('#scannerTableBuy tbody');
-const tableSell = document.querySelector('#scannerTableSell tbody');
+let alerts = [];
+let priceData = {};
 
-socket.on('alertsUpdate', (alerts) => {
-    // Clear tables
-    tableBuy.innerHTML = '';
-    tableSell.innerHTML = '';
+function renderTable() {
+    const buyTbody = document.querySelector('#scannerTableBuy tbody');
+    const sellTbody = document.querySelector('#scannerTableSell tbody');
 
-    alerts.forEach(alert => {
+    buyTbody.innerHTML = '';
+    sellTbody.innerHTML = '';
+
+    alerts.forEach(a => {
         const row = document.createElement('tr');
 
-        // Create cells
         const columns = [
-            alert.Time,
-            alert.Ticker,
-            alert.PivotRel || '',
-            alert.Trend || '',
-            alert.AI_5m || '',
-            alert.AI_15m || '',
-            alert.AI_1h || '',
-            alert.Price || '',
-            alert.DayMid || '',
-            alert.WeeklyMid || '',
-            alert.MA20 || '',
-            alert.NCPR || '',
-            alert.Pivot || ''
+            a.Time,
+            a.Ticker,
+            '', // Pivot Rel.
+            '', // Trend
+            a.AI_5m ? a.AI_5m : '',
+            a.AI_15m ? a.AI_15m : '',
+            a.AI_1h ? a.AI_1h : '',
+            priceData[a.Ticker]?.Price || '',
+            priceData[a.Ticker]?.DayMid || '',
+            priceData[a.Ticker]?.WeeklyMid || '',
+            priceData[a.Ticker]?.MA20 || '',
+            a.NCPR || '',
+            a.Pivot || ''
         ];
 
-        columns.forEach((colValue, idx) => {
+        columns.forEach((c, i) => {
             const td = document.createElement('td');
-            td.textContent = colValue;
+            td.textContent = c;
 
-            // Color logic for Buy/Sell in AI columns
-            if ([4, 5, 6].includes(idx)) { // AI_5m, AI_15m, AI_1h columns
-                if (colValue === 'Buy') td.style.color = 'green';
-                if (colValue === 'Sell') td.style.color = 'red';
+            // Color Buy/Sell
+            if (['AI_5m','AI_15m','AI_1h'][i-4]) {
+                if (c === 'Buy') td.style.color = 'green';
+                else if (c === 'Sell') td.style.color = 'red';
             }
-
             row.appendChild(td);
         });
 
-        // Append row to correct table based on zone
-        if (alert.Zone === 'green') {
-            tableBuy.appendChild(row);
-        } else {
-            tableSell.appendChild(row);
-        }
+        if (a.Zone === 'green') buyTbody.appendChild(row);
+        else sellTbody.appendChild(row);
     });
+}
+
+// Receive alerts
+socket.on('alertsUpdate', data => {
+    alerts = data;
+    renderTable();
+});
+
+// Receive live price updates
+socket.on('priceUpdate', data => {
+    priceData = data;
+    renderTable();
 });

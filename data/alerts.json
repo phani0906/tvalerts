@@ -1,47 +1,7 @@
 [
   {
-    "Ticker": "NVDA",
-    "Time": "01:48",
-    "AI_5m": "Buy",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "Zone": "green"
-  },
-  {
-    "Ticker": "MP",
-    "Time": "01:48",
-    "AI_5m": "Buy",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "Zone": "green"
-  },
-  {
-    "Ticker": "AFRM",
-    "Time": "01:48",
-    "AI_5m": "Sell",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "Zone": "red"
-  },
-  {
-    "Ticker": "MU",
-    "Time": "01:49",
-    "AI_5m": "Sell",
-    "AI_15m": "Buy",
-    "AI_1h": "Sell",
-    "Zone": "red"
-  },
-  {
-    "Ticker": "AMAT",
-    "Time": "01:49",
-    "AI_5m": "Sell",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "Zone": "red"
-  },
-  {
     "Ticker": "AMD",
-    "Time": "01:49",
+    "Time": "02:20",
     "AI_5m": "Buy",
     "AI_15m": "Sell",
     "AI_1h": "Sell",
@@ -49,50 +9,90 @@
   },
   {
     "Ticker": "HIMS",
-    "Time": "01:49",
-    "AI_5m": "Buy",
+    "Time": "02:16",
+    "AI_5m": "",
     "AI_15m": "Sell",
-    "AI_1h": "Buy",
-    "Zone": "green"
+    "AI_1h": "Sell",
+    "Zone": "red"
   },
   {
-    "Ticker": "ANET",
-    "Time": "01:50",
+    "Ticker": "FIVE",
+    "Time": "02:20",
     "AI_5m": "Sell",
+    "AI_15m": "Sell",
+    "AI_1h": "Buy",
+    "Zone": "red"
+  },
+  {
+    "Ticker": "MP",
+    "Time": "02:16",
+    "AI_5m": "",
     "AI_15m": "Buy",
     "AI_1h": "Sell",
     "Zone": "red"
   },
   {
     "Ticker": "MRVL",
-    "Time": "01:50",
-    "AI_5m": "Buy",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
-    "Zone": "green"
-  },
-  {
-    "Ticker": "FIVE",
-    "Time": "01:50",
-    "AI_5m": "Sell",
-    "AI_15m": "Buy",
-    "AI_1h": "Sell",
+    "Time": "02:16",
+    "AI_5m": "",
+    "AI_15m": "",
+    "AI_1h": "Buy",
     "Zone": "red"
   },
   {
     "Ticker": "PLTR",
-    "Time": "01:51",
-    "AI_5m": "Sell",
-    "AI_15m": "Sell",
-    "AI_1h": "Sell",
+    "Time": "02:17",
+    "AI_5m": "",
+    "AI_15m": "",
+    "AI_1h": "Buy",
     "Zone": "red"
   },
   {
-    "Ticker": "HOOD",
-    "Time": "01:51",
+    "Ticker": "NVDA",
+    "Time": "02:17",
+    "AI_5m": "Sell",
+    "AI_15m": "Sell",
+    "AI_1h": "",
+    "Zone": "red"
+  },
+  {
+    "Ticker": "MU",
+    "Time": "02:20",
+    "AI_5m": "Buy",
+    "AI_15m": "",
+    "AI_1h": "Sell",
+    "Zone": "green"
+  },
+  {
+    "Ticker": "ANET",
+    "Time": "02:17",
     "AI_5m": "Buy",
     "AI_15m": "Buy",
     "AI_1h": "Sell",
     "Zone": "green"
+  },
+  {
+    "Ticker": "AFRM",
+    "Time": "02:21",
+    "AI_5m": "Sell",
+    "AI_15m": "",
+    "AI_1h": "Sell",
+    "Zone": "red"
+  },
+  {
+    "Ticker": "AMAT",
+    "Time": "02:19",
+    "AI_5m": "Buy",
+    "AI_15m": "Sell",
+    "AI_1h": "",
+    "Zone": "green"
+  },
+  {
+    "Ticker": "HOOD",
+    "Time": "02:20",
+    "AI_5m": "Sell",
+    "AI_15m": "Sell",
+    "AI_1h": "",
+    "Zone": "red"
   }
 ]

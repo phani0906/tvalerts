@@ -1,35 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Trading Scanner</title>
-    <link rel="stylesheet" href="scanner.css">
-    <!-- Load Socket.IO first -->
-    <script src="/socket.io/socket.io.js" defer></script>
-    <!-- Then load your scanner logic -->
-    <script src="/scanner.js" defer></script>
+  <meta charset="UTF-8" />
+  <title>Trading Scanner</title>
+  <link rel="stylesheet" href="scanner.css" />
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <h2>Trading View Scanner</h2>
-    <table id="scannerTable">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Ticker</th>
-                <th>Pivot Rel.</th>
-                <th>Trend</th>
-                <th>AI5m</th>
-                <th>AI15m</th>
-                <th>AI1h</th>
-                <th>Price</th>
-                <th>DayMid</th>
-                <th>WeeklyMid</th>
-                <th>MA20</th>
-                <th>NCPR</th>
-                <th>Pivot</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
+  <h2>Trading View Scanner</h2>
+
+  <!-- 5m Buy Table -->
+  <div class="table-container">
+    <h3 class="table-title">🔥 Green Zone: 5m AI Buy</h3>
+    <table id="scannerTableBuy">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Ticker</th>
+          <th>Pivot Rel.</th>
+          <th>Trend</th>
+          <th>AI5m</th>
+          <th>Price</th>
+          <th>DayMid</th>
+          <th>WeeklyMid</th>
+          <th>MA20</th>
+          <th>NCPR</th>
+          <th>Pivot</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
     </table>
+  </div>
+
+  <!-- 5m Sell Table -->
+  <div class="table-container">
+    <h3 class="table-title">⚡ Red Zone: 5m AI Sell</h3>
+    <table id="scannerTableSell">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Ticker</th>
+          <th>Pivot Rel.</th>
+          <th>Trend</th>
+          <th>AI5m</th>
+          <th>Price</th>
+          <th>DayMid</th>
+          <th>WeeklyMid</th>
+          <th>MA20</th>
+          <th>NCPR</th>
+          <th>Pivot</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="scanner.js"></script>
 </body>
 </html>

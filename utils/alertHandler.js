@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// Path to alerts.json in data folder
 const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
 
 function initAlertHandler(app, io) {
@@ -14,7 +13,6 @@ function initAlertHandler(app, io) {
 
         console.log('Received alert:', alert);
 
-        // Read existing alerts
         let alerts = [];
         try {
             if (fs.existsSync(alertsFilePath)) {
@@ -26,105 +24,47 @@ function initAlertHandler(app, io) {
             alerts = [];
         }
 
-        // Find existing entry for this Ticker
-        let tickerIndex = alerts.findIndex(a => a.Ticker === alert.Ticker);
+        let existingIndex = alerts.findIndex(a => a.Ticker === alert.Ticker);
 
-        if (alert.Timeframe === 'AI_5m') {
-            // 5m alert overrides zone and updates time
-            if (tickerIndex !== -1) {
-                alerts[tickerIndex] = {
-                    ...alerts[tickerIndex],
-                    AI5m: alert.Alert,
-                    Alert: alert.Alert, // main zone value for buy/sell
-                    Time: alert.Time
-                };
-            } else {
-                // Create new row
-                const newRow = {
-                    Ticker: alert.Ticker,
-                    Timeframe: 'AI_5m',
-                    Time: alert.Time,
-                    PivotRel: '',
-                    Trend: '',
-                    AI5m: alert.Alert,
-                    AI15m: '',
-                    AI1h: '',
-                    Price: '',
-                    DayMid: '',
-                    WeeklyMid: '',
-                    MA20: '',
-                    NCPR: '',
-                    Pivot: '',
-                    Alert: alert.Alert
-                };
-                alerts.push(newRow);
+        if (existingIndex !== -1) {
+            // Update existing entry
+            const existing = alerts[existingIndex];
+
+            // Update the relevant timeframe column
+            if (alert.Timeframe === 'AI_5m') {
+                existing.AI_5m = alert.Alert;
+
+                // If AI_5m alert arrives, zone is **determined by AI_5m** now
+                existing.Zone = alert.Alert === 'Buy' ? 'green' : 'red';
+            } else if (alert.Timeframe === 'AI_15m') {
+                existing.AI_15m = alert.Alert;
+            } else if (alert.Timeframe === 'AI_1h') {
+                existing.AI_1h = alert.Alert;
             }
-        } else if (alert.Timeframe === 'AI_15m') {
-            if (tickerIndex !== -1) {
-                // Update only AI15m column, do not change Time
-                alerts[tickerIndex].AI15m = alert.Alert;
-            } else {
-                // Create new row with AI15m, first signal determines zone
-                const newRow = {
-                    Ticker: alert.Ticker,
-                    Timeframe: 'AI_15m',
-                    Time: alert.Time,
-                    PivotRel: '',
-                    Trend: '',
-                    AI5m: '',
-                    AI15m: alert.Alert,
-                    AI1h: '',
-                    Price: '',
-                    DayMid: '',
-                    WeeklyMid: '',
-                    MA20: '',
-                    NCPR: '',
-                    Pivot: '',
-                    Alert: alert.Alert // initial zone based on first signal
-                };
-                alerts.push(newRow);
-            }
-        } else if (alert.Timeframe === 'AI_1h') {
-            if (tickerIndex !== -1) {
-                // Update only AI1h column, do not change Time
-                alerts[tickerIndex].AI1h = alert.Alert;
-            } else {
-                // Create new row with AI1h, first signal determines zone
-                const newRow = {
-                    Ticker: alert.Ticker,
-                    Timeframe: 'AI_1h',
-                    Time: alert.Time,
-                    PivotRel: '',
-                    Trend: '',
-                    AI5m: '',
-                    AI15m: '',
-                    AI1h: alert.Alert,
-                    Price: '',
-                    DayMid: '',
-                    WeeklyMid: '',
-                    MA20: '',
-                    NCPR: '',
-                    Pivot: '',
-                    Alert: alert.Alert // initial zone based on first signal
-                };
-                alerts.push(newRow);
-            }
+
+            // Time remains first alert time
+        } else {
+            // New entry
+            const newEntry = {
+                Ticker: alert.Ticker,
+                Time: alert.Time,
+                AI_5m: alert.Timeframe === 'AI_5m' ? alert.Alert : '',
+                AI_15m: alert.Timeframe === 'AI_15m' ? alert.Alert : '',
+                AI_1h: alert.Timeframe === 'AI_1h' ? alert.Alert : '',
+                // Zone depends on first alert
+                Zone: alert.Alert === 'Buy' ? 'green' : 'red'
+            };
+
+            alerts.push(newEntry);
         }
 
-        // Sort alerts by Time descending
-        alerts.sort((a, b) => {
-            if (!a.Time || !b.Time) return 0;
-            return b.Time.localeCompare(a.Time);
-        });
-
-        // Write back to alerts.json
+        // Save back
         try {
             fs.writeFileSync(alertsFilePath, JSON.stringify(alerts, null, 2));
         } catch (err) {
             console.error('Error writing alerts.json:', err);
         }
 
-        // Emit all alerts to client
         io.emit('alertsUpdate', alerts);
 
         res.status(200).send({ success: true });

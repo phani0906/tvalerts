@@ -26,17 +26,53 @@ function initAlertHandler(app, io) {
             alerts = [];
         }
 
-        // Update or add alert for 5m only
         if (alert.Timeframe === 'AI_5m') {
-            const index = alerts.findIndex(a => a.Ticker === alert.Ticker && a.Timeframe === 'AI_5m');
+            // --- 5m alerts: create new or update existing ---
+            const index = alerts.findIndex(a => a.Ticker === alert.Ticker);
             if (index !== -1) {
-                // Update existing alert
-                alerts[index] = alert;
+                // Update existing entry
+                alerts[index].Time = alert.Time;
+                alerts[index].Alert = alert.Alert;
+                alerts[index].AI5m = alert.Alert;
             } else {
-                // Add new alert
-                alerts.push(alert);
+                // Add new entry
+                alerts.push({
+                    Ticker: alert.Ticker,
+                    Time: alert.Time,
+                    Alert: alert.Alert,
+                    AI5m: alert.Alert,
+                    AI15m: '',
+                    AI1h: '',
+                    PivotRel: '',
+                    Trend: '',
+                    Price: '',
+                    DayMid: '',
+                    WeeklyMid: '',
+                    MA20: '',
+                    NCPR: '',
+                    Pivot: ''
+                });
+            }
+        } else if (alert.Timeframe === 'AI_15m') {
+            // --- 15m alerts: update only if entry exists ---
+            const entry = alerts.find(a => a.Ticker === alert.Ticker);
+            if (entry) {
+                entry.AI15m = alert.Alert;
+            } else {
+                console.log(`15m alert ignored for ${alert.Ticker} (no existing entry)`);
+            }
+        } else if (alert.Timeframe === 'AI_1h') {
+            // --- 1h alerts: update only if entry exists ---
+            const entry = alerts.find(a => a.Ticker === alert.Ticker);
+            if (entry) {
+                entry.AI1h = alert.Alert;
+            } else {
+                console.log(`1h alert ignored for ${alert.Ticker} (no existing entry)`);
             }
         }
+
+        // Sort latest first by Time
+        alerts.sort((a, b) => (b.Time || '').localeCompare(a.Time || ''));
 
         // Write back
         try {
@@ -45,8 +81,8 @@ function initAlertHandler(app, io) {
             console.error('Error writing alerts.json:', err);
         }
 
-        // Emit only 5m alerts to clients
-        io.emit('alertsUpdate', alerts.filter(a => a.Timeframe === 'AI_5m'));
+        // Emit all alerts to clients
+        io.emit('alertsUpdate', alerts);
 
         res.status(200).send({ success: true });
     });

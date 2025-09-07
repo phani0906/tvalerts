@@ -1,41 +1,51 @@
 const socket = io();
 
-const buyTableBody = document.querySelector('#scannerTableBuy tbody');
-const sellTableBody = document.querySelector('#scannerTableSell tbody');
+const tableBuy = document.querySelector('#scannerTableBuy tbody');
+const tableSell = document.querySelector('#scannerTableSell tbody');
 
-function renderTables(alerts) {
-    buyTableBody.innerHTML = '';
-    sellTableBody.innerHTML = '';
+socket.on('alertsUpdate', (alerts) => {
+    // Clear tables
+    tableBuy.innerHTML = '';
+    tableSell.innerHTML = '';
 
     alerts.forEach(alert => {
-        const tr = document.createElement('tr');
+        const row = document.createElement('tr');
 
-        tr.innerHTML = `
-            <td>${alert.Time}</td>
-            <td>${alert.Ticker}</td>
-            <td></td>
-            <td></td>
-            <td class="${alert.AI_5m === 'Buy' ? 'green' : alert.AI_5m === 'Sell' ? 'red' : ''}">${alert.AI_5m}</td>
-            <td class="${alert.AI_15m === 'Buy' ? 'green' : alert.AI_15m === 'Sell' ? 'red' : ''}">${alert.AI_15m}</td>
-            <td class="${alert.AI_1h === 'Buy' ? 'green' : alert.AI_1h === 'Sell' ? 'red' : ''}">${alert.AI_1h}</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-        `;
+        // Create cells
+        const columns = [
+            alert.Time,
+            alert.Ticker,
+            alert.PivotRel || '',
+            alert.Trend || '',
+            alert.AI_5m || '',
+            alert.AI_15m || '',
+            alert.AI_1h || '',
+            alert.Price || '',
+            alert.DayMid || '',
+            alert.WeeklyMid || '',
+            alert.MA20 || '',
+            alert.NCPR || '',
+            alert.Pivot || ''
+        ];
 
-        // Append to green/red zone based on first alert
+        columns.forEach((colValue, idx) => {
+            const td = document.createElement('td');
+            td.textContent = colValue;
+
+            // Color logic for Buy/Sell in AI columns
+            if ([4, 5, 6].includes(idx)) { // AI_5m, AI_15m, AI_1h columns
+                if (colValue === 'Buy') td.style.color = 'green';
+                if (colValue === 'Sell') td.style.color = 'red';
+            }
+
+            row.appendChild(td);
+        });
+
+        // Append row to correct table based on zone
         if (alert.Zone === 'green') {
-            buyTableBody.appendChild(tr);
+            tableBuy.appendChild(row);
         } else {
-            sellTableBody.appendChild(tr);
+            tableSell.appendChild(row);
         }
     });
-}
-
-// Listen for alerts from server
-socket.on('alertsUpdate', alerts => {
-    renderTables(alerts);
 });

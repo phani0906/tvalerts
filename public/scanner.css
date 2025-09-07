@@ -1,19 +1,60 @@
+/* ===== Body and Heading ===== */
 body {
     background-color: #000;
     color: #FFD700; /* gold/yellow text */
     font-family: Arial, sans-serif;
-    font-size: 18px; /* increased font for readability */
+    font-size: 18px;
     margin: 10px;
 }
 
 h2 {
     color: #FFA500;
+    text-align: center;
+    margin-bottom: 20px;
 }
 
+/* ===== Table Container ===== */
+.table-container {
+    margin-bottom: 30px;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+/* ===== Table Titles ===== */
+.table-title {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+/* Buy Table Title */
+.buy-title {
+    color: #00FF00; /* bright green */
+    text-shadow: 0 0 5px #00FF00;
+}
+
+/* Sell Table Title */
+.sell-title {
+    color: #FF4500; /* reddish orange */
+    text-shadow: 0 0 5px #FF4500;
+}
+
+/* ===== Table Styling ===== */
 table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* Table Borders for Buy/Sell */
+.buy-table table {
+    border: 2px solid #00FF00;
+}
+
+.sell-table table {
+    border: 2px solid #FF4500;
 }
 
 th, td {
@@ -38,7 +79,21 @@ tr:nth-child(even) td {
     background-color: #1a1a1a;
 }
 
-td.trend {
+/* Trend Arrow */
+td.trend-arrow {
     font-weight: bold;
-    font-size: 1.3em; /* slightly bigger for arrow */
+    font-size: 1.3em;
+}
+
+/* Bullish / Bearish Trend Colors */
+.trend-bull {
+    color: #00FF00;
+}
+.trend-bear {
+    color: #FF4500;
+}
+
+/* AI Signal Colors */
+td {
+    font-weight: bold;
 }

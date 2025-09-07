@@ -3,30 +3,66 @@
     "Ticker": "MRVL",
     "Timeframe": "AI_5m",
     "Alert": "Buy",
-    "Time": "22:07"
+    "Time": "22:19"
   },
   {
-    "Ticker": "AMD",
-    "Timeframe": "AI_5m",
-    "Alert": "Sell",
-    "Time": "22:08"
-  },
-  {
-    "Ticker": "FIVE",
+    "Ticker": "MU",
     "Timeframe": "AI_5m",
     "Alert": "Buy",
-    "Time": "22:08"
+    "Time": "22:18"
+  },
+  {
+    "Ticker": "NVDA",
+    "Timeframe": "AI_5m",
+    "Alert": "Buy",
+    "Time": "22:19"
   },
   {
     "Ticker": "PLTR",
     "Timeframe": "AI_5m",
-    "Alert": "Buy",
-    "Time": "22:08"
+    "Alert": "Sell",
+    "Time": "22:15"
+  },
+  {
+    "Ticker": "AMAT",
+    "Timeframe": "AI_5m",
+    "Alert": "Sell",
+    "Time": "22:17"
   },
   {
     "Ticker": "AFRM",
     "Timeframe": "AI_5m",
     "Alert": "Buy",
-    "Time": "22:08"
+    "Time": "22:14"
+  },
+  {
+    "Ticker": "AMD",
+    "Timeframe": "AI_5m",
+    "Alert": "Buy",
+    "Time": "22:18"
+  },
+  {
+    "Ticker": "HOOD",
+    "Timeframe": "AI_5m",
+    "Alert": "Sell",
+    "Time": "22:17"
+  },
+  {
+    "Ticker": "FIVE",
+    "Timeframe": "AI_5m",
+    "Alert": "Sell",
+    "Time": "22:19"
+  },
+  {
+    "Ticker": "MP",
+    "Timeframe": "AI_5m",
+    "Alert": "Sell",
+    "Time": "22:14"
+  },
+  {
+    "Ticker": "ANET",
+    "Timeframe": "AI_5m",
+    "Alert": "Sell",
+    "Time": "22:19"
   }
 ]

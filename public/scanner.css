@@ -80,9 +80,8 @@ th, td {
     background-color: rgba(17, 17, 17, 0.8); /* 80% opacity */
 }
 
-/* Slightly lighter even rows for readability */
 tr:nth-child(even) td {
-    background-color: rgba(26, 26, 26, 0.8);
+    background-color: rgba(26, 26, 26, 0.8); /* slightly lighter even rows */
 }
 
 th {
@@ -97,17 +96,11 @@ td.trend-arrow {
 }
 
 /* Bullish / Bearish Trend Colors */
-.trend-bull {
-    color: #00FF00;
-}
-.trend-bear {
-    color: #FF4500;
-}
+.trend-bull { color: #00FF00; }
+.trend-bear { color: #FF4500; }
 
-/* AI Signal Colors */
-td {
-    font-weight: bold;
-}
+/* AI Signal Cells */
+td { font-weight: bold; }
 
 /* ===== Enhanced Table Borders for Zones ===== */
 .buy-table {
@@ -126,13 +119,34 @@ td {
     background: rgba(0, 0, 0, 0.6); /* slightly darker translucent background */
 }
 
-/* Highlights cells where |Price - metric| <= tolerance */
+/* -------- Near-zero box highlight (Blinking Border Only) -------- */
 td.near-zero {
-  background: rgba(0, 120, 255, 0.12); /* light blue */
-  outline: 1px solid rgba(0, 120, 255, 0.35);
-  font-weight: 600;
-  border-radius: 6px; /* will show if you have cell padding */
+  --blink-color: rgba(255, 193, 7, 1);   /* golden border */
+  border: 2px solid var(--blink-color);
+  border-radius: 6px;
+  font-weight: 700;
+  position: relative;
 }
 
+/* Blink the border itself */
+@keyframes borderBlink {
+  0%   { border-color: transparent; }
+  50%  { border-color: var(--blink-color); }
+  100% { border-color: transparent; }
+}
 
+td.near-zero.blink {
+  animation: borderBlink 1s ease-in-out infinite;
+}
 
+/* Pause on hover for readability */
+td.near-zero.blink:hover {
+  animation-play-state: paused;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  td.near-zero.blink {
+    animation: none !important;
+  }
+}

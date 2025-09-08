@@ -4,6 +4,16 @@ const socket = io();
 let alerts = [];
 let priceData = {};
 
+/**
+ * Expected priceData per ticker:
+ * {
+ *   Price, DayMid, WeeklyMid,
+ *   MA20_5m, VWAP_5m,
+ *   MA20_15m, VWAP_15m,
+ *   MA20_1h, VWAP_1h
+ * }
+ */
+
 // ------- tolerance config (with persistence) -------
 const TOL_KEY = 'scanner_tolerances_v1';
 const defaultTolerances = { '5m': 0.50, '15m': 1.00, '1h': 2.00 };
@@ -21,8 +31,8 @@ function loadTolerances() {
 let tolerances = loadTolerances();
 
 /**
- * Override tolerances at runtime:
- *   window.setScannerTolerances({ '5m': 0.4, '15m': 0.9, '1h': 1.8 })
+ * Override tolerances at runtime (persisted):
+ *   window.setScannerTolerances({ '5m': 0.35, '15m': 0.9, '1h': 1.8 })
  */
 window.setScannerTolerances = (overrides = {}) => {
   tolerances = { ...tolerances, ...overrides };
@@ -39,15 +49,16 @@ function toNumber(v) {
 }
 
 /**
- * Renders "metric (+/-diff)" and highlights if |diff| <= tolerance
- * label is used in tooltip ("MA20(5m)" / "VWAP(15m)" etc.)
+ * Renders "metric (+/-diff)" and highlights/blinks if |diff| <= tolerance.
+ * label examples: "MA20(5m)" / "VWAP(15m)"; timeframeKey: '5m' | '15m' | '1h'
  */
-function setMetricWithDiffCell(td, price, metric, label, timeframeKey /* '5m'|'15m'|'1h' */) {
+function setMetricWithDiffCell(td, price, metric, label, timeframeKey) {
   const p = toNumber(price);
   const m = toNumber(metric);
 
-  // reset styles/classes
-  td.classList.remove('near-zero');
+  // reset styles/classes each render
+  td.classList.remove('near-zero', 'blink');
+  td.removeAttribute('style');
   td.title = '';
 
   if (!Number.isFinite(m)) {
@@ -67,10 +78,10 @@ function setMetricWithDiffCell(td, price, metric, label, timeframeKey /* '5m'|'1
   td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
   td.title = `Price: ${p.toFixed(2)}, ${label}: ${m.toFixed(2)}`;
 
-  // highlight when close to zero
-  const tol = tolerances[timeframeKey];
+  // tolerance highlight + blink (guard if tolerances not loaded for any reason)
+  const tol = tolerances?.[timeframeKey];
   if (Number.isFinite(tol) && Math.abs(diff) <= tol) {
-    td.classList.add('near-zero');
+    td.classList.add('near-zero', 'blink');
   }
 }
 
@@ -85,8 +96,7 @@ function renderTable() {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // IMPORTANT: Column order must match your current <thead>.
-    // If you used the VWAP-augmented header we built earlier, the indices are:
+    // Column order must match your HTML with VWAP columns:
     // 0 Time, 1 Ticker, 2 Pivot Rel., 3 Trend,
     // 4 Ai 5m, 5 MA20 (5m), 6 VWAP (5m),
     // 7 Ai 15m, 8 MA20 (15m), 9 VWAP (15m),
@@ -116,28 +126,24 @@ function renderTable() {
     columns.forEach((c, i) => {
       const td = document.createElement('td');
 
-      // AI signal columns (color Buy/Sell)
       if (i === 4 || i === 7 || i === 10) {
-        td.textContent = c;
+        // AI signal columns
+        td.textContent = c ?? '';
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
-      }
-      // MA/VWAP cells with tolerance highlighting
-      else if (i === 5) {        // MA20 (5m)
+      } else if (i === 5) {
         setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)', '5m');
-      } else if (i === 6) {      // VWAP (5m)
+      } else if (i === 6) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)', '5m');
-      } else if (i === 8) {      // MA20 (15m)
+      } else if (i === 8) {
         setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)', '15m');
-      } else if (i === 9) {      // VWAP (15m)
+      } else if (i === 9) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)', '15m');
-      } else if (i === 11) {     // MA20 (1h)
+      } else if (i === 11) {
         setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)', '1h');
-      } else if (i === 12) {     // VWAP (1h)
+      } else if (i === 12) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)', '1h');
-      }
-      // Everything else plain text
-      else {
+      } else {
         td.textContent = c ?? '';
       }
 
@@ -149,7 +155,7 @@ function renderTable() {
   });
 }
 
-// Sockets
+// Socket listeners
 socket.on('alertsUpdate', data => {
   alerts = data;
   renderTable();

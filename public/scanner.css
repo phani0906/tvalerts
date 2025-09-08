@@ -5,6 +5,13 @@ body {
     font-family: Arial, sans-serif;
     font-size: 18px;
     margin: 10px;
+
+    /* ===== Background Image ===== */
+    background-image: url('images/backgroundjpg.jpg'); /* path relative to public folder */
+    background-size: cover;      /* cover entire page */
+    background-position: center; /* center the image */
+    background-repeat: no-repeat;
+    background-attachment: fixed; /* stays in place while scrolling */
 }
 
 h2 {
@@ -25,6 +32,10 @@ h2 {
     font-size: 1.5em;
     margin-bottom: 10px;
     font-weight: bold;
+}
+
+.table-title::before {
+    margin-right: 8px;
 }
 
 /* Buy Table Title */
@@ -64,19 +75,19 @@ th, td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    /* ===== Make table cells slightly translucent ===== */
+    background-color: rgba(17, 17, 17, 0.8); /* 80% opacity */
+}
+
+/* Slightly lighter even rows for readability */
+tr:nth-child(even) td {
+    background-color: rgba(26, 26, 26, 0.8);
 }
 
 th {
-    background-color: #222;
+    background-color: rgba(34, 34, 34, 0.9); /* header slightly more opaque */
     color: #FFA500;
-}
-
-td {
-    background-color: #111;
-}
-
-tr:nth-child(even) td {
-    background-color: #1a1a1a;
 }
 
 /* Trend Arrow */
@@ -97,3 +108,22 @@ td.trend-arrow {
 td {
     font-weight: bold;
 }
+
+/* ===== Enhanced Table Borders for Zones ===== */
+.buy-table {
+    border: 3px solid #00FF00; /* bright green */
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.6); /* subtle green glow */
+    background: rgba(0, 0, 0, 0.6); /* slightly darker translucent background */
+}
+
+.sell-table {
+    border: 3px solid #FF4500; /* reddish-orange */
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 0 15px rgba(255, 69, 0, 0.6); /* subtle red glow */
+    background: rgba(0, 0, 0, 0.6); /* slightly darker translucent background */
+}
+
+

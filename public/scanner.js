@@ -20,6 +20,29 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+function setMAWithDiffCell(td, price, ma, label) {
+  const p = toNumber(price);
+  const m = toNumber(ma);
+
+  if (!Number.isFinite(m)) {
+    td.textContent = '';
+    td.title = '';
+    return;
+  }
+
+  if (!Number.isFinite(p)) {
+    td.textContent = m.toFixed(2);
+    td.title = `${label}: ${m.toFixed(2)}`;
+    return;
+  }
+
+  const diff = p - m; // positive => price above MA
+  const sign = diff > 0 ? '+' : diff < 0 ? '-' : '+';
+  const color = diff > 0 ? 'green' : diff < 0 ? 'red' : 'gray';
+  td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
+  td.title = `Price: ${p.toFixed(2)}, ${label}: ${m.toFixed(2)}`;
+}
+
 function renderTable() {
   const buyTbody = document.querySelector('#scannerTableBuy tbody');
   const sellTbody = document.querySelector('#scannerTableSell tbody');
@@ -37,12 +60,12 @@ function renderTable() {
       a.Ticker,                  // 1
       '',                        // 2 Pivot Rel.
       '',                        // 3 Trend
-      a.AI_5m || '',             // 4
-      p.MA20_5m ?? '',           // 5  <-- MA20 (5m) with diff vs Price
-      a.AI_15m || '',            // 6
-      p.MA20_15m ?? '',          // 7
-      a.AI_1h || '',             // 8
-      p.MA20_1h ?? '',           // 9
+      a.AI_5m || '',             // 4  (AI)
+      p.MA20_5m ?? '',           // 5  (MA20 5m with diff)
+      a.AI_15m || '',            // 6  (AI)
+      p.MA20_15m ?? '',          // 7  (MA20 15m with diff)
+      a.AI_1h || '',             // 8  (AI)
+      p.MA20_1h ?? '',           // 9  (MA20 1h with diff)
       p.Price ?? '',             // 10
       p.DayMid ?? '',            // 11
       p.WeeklyMid ?? '',         // 12
@@ -59,24 +82,14 @@ function renderTable() {
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
       } else if (i === 5) {
-        // MA20 (5m) cell: show "MA20 (+/-diff)" e.g., "98.00 (+2.00)"
-        const ma = toNumber(p.MA20_5m);
-        const price = toNumber(p.Price);
-
-        if (Number.isFinite(ma)) {
-          if (Number.isFinite(price)) {
-            const diff = price - ma; // positive => price above MA
-            const sign = diff > 0 ? '+' : diff < 0 ? '-' : '+';
-            const color = diff > 0 ? 'green' : diff < 0 ? 'red' : 'gray';
-            td.innerHTML = `${ma.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
-            td.title = `Price: ${price.toFixed(2)}, MA20(5m): ${ma.toFixed(2)}`;
-          } else {
-            td.textContent = ma.toFixed(2);
-            td.title = `MA20(5m): ${ma.toFixed(2)}`;
-          }
-        } else {
-          td.textContent = ''; // no MA → leave blank
-        }
+        // MA20 (5m)
+        setMAWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)');
+      } else if (i === 7) {
+        // MA20 (15m)
+        setMAWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)');
+      } else if (i === 9) {
+        // MA20 (1h)
+        setMAWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)');
       } else {
         td.textContent = c;
       }

@@ -41,7 +41,7 @@
   },
   {
     "Ticker": "HOOD",
-    "Time": "21:50",
+    "Time": "21:52",
     "AI_5m": "Sell",
     "AI_15m": "Sell",
     "AI_1h": "Sell",
@@ -51,8 +51,8 @@
     "Ticker": "FIVE",
     "Time": "21:50",
     "AI_5m": "Buy",
-    "AI_15m": "Buy",
-    "AI_1h": "Sell",
+    "AI_15m": "Sell",
+    "AI_1h": "Buy",
     "Zone": "green"
   },
   {
@@ -60,7 +60,7 @@
     "Time": "21:51",
     "AI_5m": "Buy",
     "AI_15m": "Buy",
-    "AI_1h": "Buy",
+    "AI_1h": "Sell",
     "Zone": "green"
   },
   {
@@ -84,15 +84,15 @@
     "Time": "21:48",
     "AI_5m": "Sell",
     "AI_15m": "Buy",
-    "AI_1h": "Buy",
+    "AI_1h": "Sell",
     "Zone": "red"
   },
   {
     "Ticker": "MRVL",
-    "Time": "21:47",
-    "AI_5m": "Sell",
+    "Time": "21:52",
+    "AI_5m": "Buy",
     "AI_15m": "Buy",
     "AI_1h": "Sell",
-    "Zone": "red"
+    "Zone": "green"
   }
 ]

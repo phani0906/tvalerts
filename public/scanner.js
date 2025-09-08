@@ -8,7 +8,9 @@ let priceData = {};
  * Expected priceData shape per ticker (examples):
  * priceData[ticker] = {
  *   Price, DayMid, WeeklyMid,
- *   MA20_5m, MA20_15m, MA20_1h
+ *   MA20_5m, VWAP_5m,
+ *   MA20_15m, VWAP_15m,
+ *   MA20_1h, VWAP_1h
  * }
  */
 
@@ -20,9 +22,13 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-function setMAWithDiffCell(td, price, ma, label) {
+/**
+ * Renders a cell with "metric (+/-diff)" where diff = Price - metric.
+ * Example: metric=98, price=100 -> "98.00 (+2.00)" in green.
+ */
+function setMetricWithDiffCell(td, price, metric, label) {
   const p = toNumber(price);
-  const m = toNumber(ma);
+  const m = toNumber(metric);
 
   if (!Number.isFinite(m)) {
     td.textContent = '';
@@ -36,7 +42,7 @@ function setMAWithDiffCell(td, price, ma, label) {
     return;
   }
 
-  const diff = p - m; // positive => price above MA
+  const diff = p - m; // positive => price above metric
   const sign = diff > 0 ? '+' : diff < 0 ? '-' : '+';
   const color = diff > 0 ? 'green' : diff < 0 ? 'red' : 'gray';
   td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
@@ -60,38 +66,52 @@ function renderTable() {
       a.Ticker,                  // 1
       '',                        // 2 Pivot Rel.
       '',                        // 3 Trend
-      a.AI_5m || '',             // 4  (AI)
-      p.MA20_5m ?? '',           // 5  (MA20 5m with diff)
-      a.AI_15m || '',            // 6  (AI)
-      p.MA20_15m ?? '',          // 7  (MA20 15m with diff)
-      a.AI_1h || '',             // 8  (AI)
-      p.MA20_1h ?? '',           // 9  (MA20 1h with diff)
-      p.Price ?? '',             // 10
-      p.DayMid ?? '',            // 11
-      p.WeeklyMid ?? '',         // 12
-      a.NCPR || '',              // 13
-      a.Pivot || ''              // 14
+
+      a.AI_5m || '',             // 4 (AI)
+      p.MA20_5m ?? '',           // 5 (MA20 5m, with diff)
+      p.VWAP_5m ?? '',           // 6 (VWAP 5m, with diff)
+
+      a.AI_15m || '',            // 7 (AI)
+      p.MA20_15m ?? '',          // 8 (MA20 15m, with diff)
+      p.VWAP_15m ?? '',          // 9 (VWAP 15m, with diff)
+
+      a.AI_1h || '',             // 10 (AI)
+      p.MA20_1h ?? '',           // 11 (MA20 1h, with diff)
+      p.VWAP_1h ?? '',           // 12 (VWAP 1h, with diff)
+
+      p.Price ?? '',             // 13
+      p.DayMid ?? '',            // 14
+      p.WeeklyMid ?? '',         // 15
+      a.NCPR || '',              // 16
+      a.Pivot || ''              // 17
     ];
 
     columns.forEach((c, i) => {
       const td = document.createElement('td');
 
-      if (i === 4 || i === 6 || i === 8) {
-        // Color only the AI signal columns (indices 4, 6, 8)
+      // AI signal columns (color Buy/Sell)
+      if (i === 4 || i === 7 || i === 10) {
         td.textContent = c;
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
-      } else if (i === 5) {
-        // MA20 (5m)
-        setMAWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)');
-      } else if (i === 7) {
-        // MA20 (15m)
-        setMAWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)');
-      } else if (i === 9) {
-        // MA20 (1h)
-        setMAWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)');
-      } else {
-        td.textContent = c;
+      }
+      // Metric cells with (Price - Metric) diff
+      else if (i === 5) {        // MA20 (5m)
+        setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)');
+      } else if (i === 6) {      // VWAP (5m)
+        setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)');
+      } else if (i === 8) {      // MA20 (15m)
+        setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)');
+      } else if (i === 9) {      // VWAP (15m)
+        setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)');
+      } else if (i === 11) {     // MA20 (1h)
+        setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)');
+      } else if (i === 12) {     // VWAP (1h)
+        setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)');
+      }
+      // Everything else plain text
+      else {
+        td.textContent = c ?? '';
       }
 
       row.appendChild(td);

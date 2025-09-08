@@ -105,6 +105,7 @@ function renderTable() {
     const columns = [
       a.Time,
       a.Ticker,
+      p.Price ?? '',
       '',
       '',
       a.AI_5m || '',
@@ -116,7 +117,6 @@ function renderTable() {
       a.AI_1h || '',
       p.MA20_1h ?? '',
       p.VWAP_1h ?? '',
-      p.Price ?? '',
       p.DayMid ?? '',
       p.WeeklyMid ?? '',
       a.NCPR || '',

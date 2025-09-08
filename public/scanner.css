@@ -119,34 +119,44 @@ td { font-weight: bold; }
     background: rgba(0, 0, 0, 0.6); /* slightly darker translucent background */
 }
 
-/* -------- Near-zero box highlight (Blinking Border Only) -------- */
+/* -------- Near-zero box highlight (Blinking Border INSIDE the cell) -------- */
+/* Uses an inset box-shadow so it won't be clipped by table overflow */
 td.near-zero {
-  --blink-color: rgba(255, 193, 7, 1);   /* golden border */
-  border: 2px solid var(--blink-color);
-  border-radius: 6px;
-  font-weight: 700;
   position: relative;
+  font-weight: 700;
 }
 
-/* Blink the border itself */
-@keyframes borderBlink {
-  0%   { border-color: transparent; }
-  50%  { border-color: var(--blink-color); }
-  100% { border-color: transparent; }
+/* Pseudo-element draws an inset gold border */
+td.near-zero::after {
+  content: "";
+  position: absolute;
+  inset: 0; /* exactly inside the cell */
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 3px rgba(255, 193, 7, 1); /* gold outline */
+  opacity: 0;
+  pointer-events: none;
 }
 
-td.near-zero.blink {
-  animation: borderBlink 1s ease-in-out infinite;
+/* Blink animation by toggling opacity */
+@keyframes insetBorderBlink {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+td.near-zero.blink::after {
+  animation: insetBorderBlink 3.2s ease-in-out infinite; /* slowed down further */
 }
 
 /* Pause on hover for readability */
-td.near-zero.blink:hover {
+td.near-zero.blink:hover::after {
   animation-play-state: paused;
 }
 
-/* Respect reduced motion */
+/* Accessibility: disable blinking if reduced motion is preferred */
 @media (prefers-reduced-motion: reduce) {
-  td.near-zero.blink {
+  td.near-zero.blink::after {
     animation: none !important;
+    opacity: 1; /* static visible gold outline */
   }
 }

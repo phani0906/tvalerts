@@ -126,4 +126,13 @@ td {
     background: rgba(0, 0, 0, 0.6); /* slightly darker translucent background */
 }
 
+/* Highlights cells where |Price - metric| <= tolerance */
+td.near-zero {
+  background: rgba(0, 120, 255, 0.12); /* light blue */
+  outline: 1px solid rgba(0, 120, 255, 0.35);
+  font-weight: 600;
+  border-radius: 6px; /* will show if you have cell padding */
+}
+
+
 

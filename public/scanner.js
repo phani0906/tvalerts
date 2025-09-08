@@ -4,15 +4,31 @@ const socket = io();
 let alerts = [];
 let priceData = {};
 
+// ------- tolerance config (with persistence) -------
+const TOL_KEY = 'scanner_tolerances_v1';
+const defaultTolerances = { '5m': 0.50, '15m': 1.00, '1h': 2.00 };
+
+function loadTolerances() {
+  try {
+    const raw = localStorage.getItem(TOL_KEY);
+    if (!raw) return { ...defaultTolerances };
+    const parsed = JSON.parse(raw);
+    return { ...defaultTolerances, ...parsed };
+  } catch {
+    return { ...defaultTolerances };
+  }
+}
+let tolerances = loadTolerances();
+
 /**
- * Expected priceData shape per ticker (examples):
- * priceData[ticker] = {
- *   Price, DayMid, WeeklyMid,
- *   MA20_5m, VWAP_5m,
- *   MA20_15m, VWAP_15m,
- *   MA20_1h, VWAP_1h
- * }
+ * Override tolerances at runtime:
+ *   window.setScannerTolerances({ '5m': 0.4, '15m': 0.9, '1h': 1.8 })
  */
+window.setScannerTolerances = (overrides = {}) => {
+  tolerances = { ...tolerances, ...overrides };
+  localStorage.setItem(TOL_KEY, JSON.stringify(tolerances));
+  renderTable();
+};
 
 // ------- helpers -------
 function toNumber(v) {
@@ -23,16 +39,19 @@ function toNumber(v) {
 }
 
 /**
- * Renders a cell with "metric (+/-diff)" where diff = Price - metric.
- * Example: metric=98, price=100 -> "98.00 (+2.00)" in green.
+ * Renders "metric (+/-diff)" and highlights if |diff| <= tolerance
+ * label is used in tooltip ("MA20(5m)" / "VWAP(15m)" etc.)
  */
-function setMetricWithDiffCell(td, price, metric, label) {
+function setMetricWithDiffCell(td, price, metric, label, timeframeKey /* '5m'|'15m'|'1h' */) {
   const p = toNumber(price);
   const m = toNumber(metric);
 
+  // reset styles/classes
+  td.classList.remove('near-zero');
+  td.title = '';
+
   if (!Number.isFinite(m)) {
     td.textContent = '';
-    td.title = '';
     return;
   }
 
@@ -47,6 +66,12 @@ function setMetricWithDiffCell(td, price, metric, label) {
   const color = diff > 0 ? 'green' : diff < 0 ? 'red' : 'gray';
   td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
   td.title = `Price: ${p.toFixed(2)}, ${label}: ${m.toFixed(2)}`;
+
+  // highlight when close to zero
+  const tol = tolerances[timeframeKey];
+  if (Number.isFinite(tol) && Math.abs(diff) <= tol) {
+    td.classList.add('near-zero');
+  }
 }
 
 function renderTable() {
@@ -60,30 +85,32 @@ function renderTable() {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // Column order must match <thead>
+    // IMPORTANT: Column order must match your current <thead>.
+    // If you used the VWAP-augmented header we built earlier, the indices are:
+    // 0 Time, 1 Ticker, 2 Pivot Rel., 3 Trend,
+    // 4 Ai 5m, 5 MA20 (5m), 6 VWAP (5m),
+    // 7 Ai 15m, 8 MA20 (15m), 9 VWAP (15m),
+    // 10 Ai 1h, 11 MA20 (1h), 12 VWAP (1h),
+    // 13 Price, 14 DayMid, 15 WeeklyMid, 16 NCPR, 17 Pivot
     const columns = [
-      a.Time,                    // 0
-      a.Ticker,                  // 1
-      '',                        // 2 Pivot Rel.
-      '',                        // 3 Trend
-
-      a.AI_5m || '',             // 4 (AI)
-      p.MA20_5m ?? '',           // 5 (MA20 5m, with diff)
-      p.VWAP_5m ?? '',           // 6 (VWAP 5m, with diff)
-
-      a.AI_15m || '',            // 7 (AI)
-      p.MA20_15m ?? '',          // 8 (MA20 15m, with diff)
-      p.VWAP_15m ?? '',          // 9 (VWAP 15m, with diff)
-
-      a.AI_1h || '',             // 10 (AI)
-      p.MA20_1h ?? '',           // 11 (MA20 1h, with diff)
-      p.VWAP_1h ?? '',           // 12 (VWAP 1h, with diff)
-
-      p.Price ?? '',             // 13
-      p.DayMid ?? '',            // 14
-      p.WeeklyMid ?? '',         // 15
-      a.NCPR || '',              // 16
-      a.Pivot || ''              // 17
+      a.Time,
+      a.Ticker,
+      '',
+      '',
+      a.AI_5m || '',
+      p.MA20_5m ?? '',
+      p.VWAP_5m ?? '',
+      a.AI_15m || '',
+      p.MA20_15m ?? '',
+      p.VWAP_15m ?? '',
+      a.AI_1h || '',
+      p.MA20_1h ?? '',
+      p.VWAP_1h ?? '',
+      p.Price ?? '',
+      p.DayMid ?? '',
+      p.WeeklyMid ?? '',
+      a.NCPR || '',
+      a.Pivot || ''
     ];
 
     columns.forEach((c, i) => {
@@ -95,19 +122,19 @@ function renderTable() {
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
       }
-      // Metric cells with (Price - Metric) diff
+      // MA/VWAP cells with tolerance highlighting
       else if (i === 5) {        // MA20 (5m)
-        setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)');
+        setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)', '5m');
       } else if (i === 6) {      // VWAP (5m)
-        setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)');
+        setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)', '5m');
       } else if (i === 8) {      // MA20 (15m)
-        setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)');
+        setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)', '15m');
       } else if (i === 9) {      // VWAP (15m)
-        setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)');
+        setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)', '15m');
       } else if (i === 11) {     // MA20 (1h)
-        setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)');
+        setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)', '1h');
       } else if (i === 12) {     // VWAP (1h)
-        setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)');
+        setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)', '1h');
       }
       // Everything else plain text
       else {
@@ -122,7 +149,7 @@ function renderTable() {
   });
 }
 
-// Socket listeners
+// Sockets
 socket.on('alertsUpdate', data => {
   alerts = data;
   renderTable();

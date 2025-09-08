@@ -49,8 +49,10 @@ function toNumber(v) {
 }
 
 /**
- * Renders "metric (+/-diff)" and highlights/blinks if |diff| <= tolerance.
- * label examples: "MA20(5m)" / "VWAP(15m)"; timeframeKey: '5m' | '15m' | '1h'
+ * Renders "metric (+/-diff)" and (optionally) highlights/blinks if |diff| <= tolerance.
+ * label examples: "MA20(5m)" / "VWAP(15m)" / "DayMid" / "WeeklyMid"
+ * timeframeKey: '5m' | '15m' | '1h' | undefined
+ *  - If provided and tolerance exists, add near-zero blink. Otherwise just render diff.
  */
 function setMetricWithDiffCell(td, price, metric, label, timeframeKey) {
   const p = toNumber(price);
@@ -78,10 +80,12 @@ function setMetricWithDiffCell(td, price, metric, label, timeframeKey) {
   td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
   td.title = `Price: ${p.toFixed(2)}, ${label}: ${m.toFixed(2)}`;
 
-  // tolerance highlight + blink (guard if tolerances not loaded for any reason)
-  const tol = tolerances?.[timeframeKey];
-  if (Number.isFinite(tol) && Math.abs(diff) <= tol) {
-    td.classList.add('near-zero', 'blink');
+  // tolerance highlight + blink only for timeframe-based metrics (MA/VWAP)
+  if (timeframeKey) {
+    const tol = tolerances?.[timeframeKey];
+    if (Number.isFinite(tol) && Math.abs(diff) <= tol) {
+      td.classList.add('near-zero', 'blink');
+    }
   }
 }
 
@@ -96,54 +100,64 @@ function renderTable() {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // Column order must match your HTML with VWAP columns:
-    // 0 Time, 1 Ticker, 2 Pivot Rel., 3 Trend,
-    // 4 Ai 5m, 5 MA20 (5m), 6 VWAP (5m),
-    // 7 Ai 15m, 8 MA20 (15m), 9 VWAP (15m),
-    // 10 Ai 1h, 11 MA20 (1h), 12 VWAP (1h),
-    // 13 Price, 14 DayMid, 15 WeeklyMid, 16 NCPR, 17 Pivot
+    // HEADER ORDER (after moving Price next to Ticker):
+    // 0 Time, 1 Ticker, 2 Price, 3 Pivot Rel., 4 Trend,
+    // 5 Ai 5m, 6 MA20 (5m), 7 VWAP (5m),
+    // 8 Ai 15m, 9 MA20 (15m), 10 VWAP (15m),
+    // 11 Ai 1h, 12 MA20 (1h), 13 VWAP (1h),
+    // 14 DayMid, 15 WeeklyMid, 16 NCPR, 17 Pivot
     const columns = [
-      a.Time,
-      a.Ticker,
-      p.Price ?? '',
-      '',
-      '',
-      a.AI_5m || '',
-      p.MA20_5m ?? '',
-      p.VWAP_5m ?? '',
-      a.AI_15m || '',
-      p.MA20_15m ?? '',
-      p.VWAP_15m ?? '',
-      a.AI_1h || '',
-      p.MA20_1h ?? '',
-      p.VWAP_1h ?? '',
-      p.DayMid ?? '',
-      p.WeeklyMid ?? '',
-      a.NCPR || '',
-      a.Pivot || ''
+      a.Time,                    // 0
+      a.Ticker,                  // 1
+      p.Price ?? '',             // 2  Price next to ticker
+      '',                        // 3  Pivot Rel.
+      '',                        // 4  Trend
+      a.AI_5m || '',             // 5
+      p.MA20_5m ?? '',           // 6
+      p.VWAP_5m ?? '',           // 7
+      a.AI_15m || '',            // 8
+      p.MA20_15m ?? '',          // 9
+      p.VWAP_15m ?? '',          // 10
+      a.AI_1h || '',             // 11
+      p.MA20_1h ?? '',           // 12
+      p.VWAP_1h ?? '',           // 13
+      p.DayMid ?? '',            // 14
+      p.WeeklyMid ?? '',         // 15
+      a.NCPR || '',              // 16
+      a.Pivot || ''              // 17
     ];
 
     columns.forEach((c, i) => {
       const td = document.createElement('td');
 
-      if (i === 4 || i === 7 || i === 10) {
-        // AI signal columns
+      // AI signal columns (Buy/Sell color)
+      if (i === 5 || i === 8 || i === 11) {
         td.textContent = c ?? '';
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
-      } else if (i === 5) {
+      }
+      // MA/VWAP with tolerance-based blinking
+      else if (i === 6) {        // MA20 (5m)
         setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)', '5m');
-      } else if (i === 6) {
+      } else if (i === 7) {      // VWAP (5m)
         setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)', '5m');
-      } else if (i === 8) {
+      } else if (i === 9) {      // MA20 (15m)
         setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)', '15m');
-      } else if (i === 9) {
+      } else if (i === 10) {     // VWAP (15m)
         setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)', '15m');
-      } else if (i === 11) {
+      } else if (i === 12) {     // MA20 (1h)
         setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)', '1h');
-      } else if (i === 12) {
+      } else if (i === 13) {     // VWAP (1h)
         setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)', '1h');
-      } else {
+      }
+      // DayMid / WeeklyMid: apply diff logic (no blink)
+      else if (i === 14) {       // DayMid
+        setMetricWithDiffCell(td, p.Price, p.DayMid, 'DayMid', undefined);
+      } else if (i === 15) {     // WeeklyMid
+        setMetricWithDiffCell(td, p.Price, p.WeeklyMid, 'WeeklyMid', undefined);
+      }
+      // Everything else plain text
+      else {
         td.textContent = c ?? '';
       }
 

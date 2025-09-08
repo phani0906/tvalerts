@@ -1,62 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Trading Scanner</title>
-<link rel="stylesheet" href="scanner.css">
-<script src="/socket.io/socket.io.js"></script>
+  <meta charset="UTF-8" />
+  <title>Trading Scanner</title>
+  <link rel="stylesheet" href="scanner.css" />
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-<h2>Trading View Scanner</h2>
+  <h2>Trading View Scanner</h2>
 
-<div class="table-container buy-table">
-<h3 class="table-title buy-title">🔥 Green Zone</h3>
-<table id="scannerTableBuy">
-<thead>
-<tr>
-<th>Time</th>
-<th>Ticker</th>
-<th>Pivot Rel.</th>
-<th>Trend</th>
-<th>Ai 5min</th>
-<th>Ai 15min</th>
-<th>Ai 1Hr</th>
-<th>Price</th>
-<th>DayMid</th>
-<th>WeeklyMid</th>
-<th>MA20</th>
-<th>NCPR</th>
-<th>Pivot</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
+  <div class="table-container buy-table">
+    <h3 class="table-title buy-title">🔥 Green Zone</h3>
+    <table id="scannerTableBuy">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Ticker</th>
+          <th>Pivot Rel.</th>
+          <th>Trend</th>
+          <th>Ai 5min</th>
+          <th>MA20 (5m)</th>
+          <th>Ai 15min</th>
+          <th>MA20 (15m)</th>
+          <th>Ai 1Hr</th>
+          <th>MA20 (1h)</th>
+          <th>Price</th>
+          <th>DayMid</th>
+          <th>WeeklyMid</th>
+          <th>NCPR</th>
+          <th>Pivot</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-<div class="table-container sell-table">
-<h3 class="table-title sell-title">⚡ Red Zone</h3>
-<table id="scannerTableSell">
-<thead>
-<tr>
-<th>Time</th>
-<th>Ticker</th>
-<th>Pivot Rel.</th>
-<th>Trend</th>
-<th>Ai 5min</th>
-<th>Ai 15min</th>
-<th>Ai 1Hr</th>
-<th>Price</th>
-<th>DayMid</th>
-<th>WeeklyMid</th>
-<th>MA20</th>
-<th>NCPR</th>
-<th>Pivot</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-</div>
+  <div class="table-container sell-table">
+    <h3 class="table-title sell-title">⚡ Red Zone</h3>
+    <table id="scannerTableSell">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Ticker</th>
+          <th>Pivot Rel.</th>
+          <th>Trend</th>
+          <th>Ai 5min</th>
+          <th>MA20 (5m)</th>
+          <th>Ai 15min</th>
+          <th>MA20 (15m)</th>
+          <th>Ai 1Hr</th>
+          <th>MA20 (1h)</th>
+          <th>Price</th>
+          <th>DayMid</th>
+          <th>WeeklyMid</th>
+          <th>NCPR</th>
+          <th>Pivot</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-<script src="scanner.js"></script>
+  <script src="scanner.js"></script>
 </body>
 </html>

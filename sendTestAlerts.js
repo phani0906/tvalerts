@@ -1,81 +1,60 @@
 // sendTestAlerts.js
 const axios = require('axios');
 
-const tickers = ['AMD', 'NVDA', 'AMAT', 'ANET', 'PLTR', 'HOOD', 'AFRM', 'MRVL', 'HIMS', 'MP', 'MU', 'FIVE'];
-const timeframes = ['AI_5m', 'AI_15m', 'AI_1h'];
-const alerts = ['Buy', 'Sell'];
+// ----------------- CONFIG -----------------
+const ENDPOINT = process.env.ALERT_URL || 'http://localhost:2709/sendAlert';
+// e.g. ALERT_URL="https://fancy-ngrok.ngrok.io/tv-webhook?key=your_super_secret"
+// or     ALERT_URL="http://localhost:2709/sendAlert"
 
-function getRandomItem(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
+const INTERVAL_MS = Number(process.env.INTERVAL_MS || 5000); // 5s default
+const ONE_SHOT = process.env.ONE_SHOT === '1';                // send once & exit
+const VERBOSE = process.env.VERBOSE === '1';
+
+const tickers = ['AMD','NVDA','AMAT','ANET','PLTR','HOOD','AFRM','MRVL','HIMS','MP','MU','FIVE'];
+const timeframes = ['AI_5m','AI_15m','AI_1h'];
+const alerts = ['Buy','Sell'];
+
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function hhmm() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
 }
 
-async function sendRandomAlert() {
-    const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-
-    const newAlert = {
-        Ticker: getRandomItem(tickers),
-        Timeframe: getRandomItem(timeframes),
-        Alert: getRandomItem(alerts),
-        Time: `${hours}:${minutes}`
-    };
-
-    try {
-        await axios.post('http://localhost:2709/sendAlert', newAlert);
-        console.log(newAlert); // only show the alert object
-    } catch (err) {
-        console.error('Error sending alert:', err.message);
-    }
+function buildPayload() {
+  // Payload that your /sendAlert handler expects
+  return {
+    Ticker:    pick(tickers),
+    Timeframe: pick(timeframes),
+    Alert:     pick(alerts),
+    Time:      hhmm(),   // your handler expects HH:MM
+  };
 }
 
-// Send one alert every 5 seconds
-setInterval(sendRandomAlert, 5000);
+async function sendOnce() {
+  const payload = buildPayload();
 
-console.log('sendTestAlerts running...');
+  try {
+    const res = await axios.post(ENDPOINT, payload, { timeout: 8000 });
+    if (VERBOSE) console.log('POST', ENDPOINT);
+    console.log(payload);        // print just the alert object
+  } catch (err) {
+    console.error('Error sending alert:', err.message);
+  }
+}
 
-///////////////////////////////////
-// const axios = require('axios');
-// const readline = require('readline');
+async function main() {
+  if (ONE_SHOT) {
+    await sendOnce();
+    process.exit(0);
+  }
+  console.log('sendTestAlerts running...');
+  await sendOnce();
+  setInterval(sendOnce, INTERVAL_MS);
 
-// const tickers = ['AMD', 'NVDA', 'AMAT', 'ANET', 'PLTR', 'HOOD', 'AFRM', 'MRVL', 'HIMS', 'MP', 'MU', 'FIVE'];
-// const timeframes = ['AI_5m', 'AI_15m', 'AI_1h'];
-// const alerts = ['Buy', 'Sell'];
-
-// function getRandomItem(arr) {
-//     return arr[Math.floor(Math.random() * arr.length)];
-// }
-
-// async function sendRandomAlert() {
-//     const now = new Date();
-//     const hours = now.getHours().toString().padStart(2, '0');
-//     const minutes = now.getMinutes().toString().padStart(2, '0');
-
-//     const newAlert = {
-//         Ticker: getRandomItem(tickers),
-//         Timeframe: getRandomItem(timeframes),
-//         Alert: getRandomItem(alerts),
-//         Time: `${hours}:${minutes}`
-//     };
-
-//     try {
-//         await axios.post('http://localhost:786/sendAlert', newAlert);
-//         console.log('Sent alert:', newAlert); // only show the alert object
-//     } catch (err) {
-//         console.error('Error sending alert:', err.message);
-//     }
-// }
-
-// // Setup readline to wait for Enter key
-// const rl = readline.createInterface({
-//     input: process.stdin,
-//     output: process.stdout
-// });
-
-// console.log('Press Enter to send a random alert. Ctrl+C to exit.');
-
-// rl.on('line', async () => {
-//     await sendRandomAlert();
-//     console.log('Press Enter to send the next alert...');
-// });
-
+  // graceful shutdown
+  process.on('SIGINT', () => { console.log('\nStopping...'); process.exit(0); });
+}
+main();

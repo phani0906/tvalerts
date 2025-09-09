@@ -1,65 +1,74 @@
+// server.js
+require('dotenv').config();
+
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const http = require('http');
-const { initAlertHandler } = require('./utils/alertHandler');
-const { startMarketDataUpdater } = require('./utils/marketData');
-const path = require('path');
+const { Server } = require('socket.io');
 
+// ---- Modules you already have ----
+const { initAlertHandler } = require('./server/alertHandler'); // your code pasted earlier
+const { startMarketDataUpdater } = require('./server/marketData'); // your market data poller
+
+// ---- (New) TradingView webhook router ----
+const tvWebhookRouterFactory = require('./server/tvWebhook'); // see file contents below
+
+// ---- App + Server + IO ----
 const app = express();
 const server = http.createServer(app);
-const io = require('socket.io')(server);
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Initialize alert handler
-initAlertHandler(app, io);
-
-// Start live market data updates
-startMarketDataUpdater(io);
-
-// Root endpoint showing link to scanner.html with background image
-app.get('/', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <title>TV Alerts Home</title>
-            <style>
-                body {
-                    margin: 0;
-                    padding: 0;
-                    height: 100vh;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    font-family: Arial, sans-serif;
-                    background-image: url('/images/background.jpg'); /* local image */
-                    background-size: cover;
-                    background-position: center;
-                    color: white;
-                    text-shadow: 2px 2px 4px #000;
-                }
-                a {
-                    padding: 20px 40px;
-                    background-color: rgba(0,0,0,0.5);
-                    color: #fff;
-                    text-decoration: none;
-                    font-size: 24px;
-                    border-radius: 8px;
-                    transition: background 0.3s;
-                }
-                a:hover {
-                    background-color: rgba(0,0,0,0.8);
-                }
-            </style>
-        </head>
-        <body>
-            <a href="/scanner.html">Go to Scanner</a>
-        </body>
-        </html>
-    `);
+const io = new Server(server, {
+  // loosen if your UI is on a different origin
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-const PORT = 2709;
-server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+// ---- Config ----
+const PORT = process.env.PORT || 2709;
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const TV_SECRET = process.env.TV_SECRET || ''; // set in .env for webhook protection
+
+// ---- Ensure data dir exists (for alerts.json) ----
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (e) {
+  console.error('Failed to ensure data dir:', DATA_DIR, e);
+}
+
+// ---- Middlewares ----
+app.use(express.json({ limit: '1mb' })); // parse JSON bodies
+// If your UI runs on a different host/port, uncomment CORS:
+// const cors = require('cors'); app.use(cors({ origin: '*' }));
+
+// ---- Static files (your scanner: index/scanner.html, scanner.js, scanner.css, etc.) ----
+app.use(express.static(PUBLIC_DIR));
+
+// ---- Health check ----
+app.get('/health', (req, res) => {
+  res.status(200).send({ ok: true, time: new Date().toISOString() });
+});
+
+// ---- Socket.IO basic logging (optional) ----
+io.on('connection', socket => {
+  console.log('Client connected:', socket.id);
+  socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
+});
+
+// ---- Initialize your /sendAlert handler (from your file) ----
+initAlertHandler(app, io);
+
+// ---- Mount TradingView webhook route (/tv-webhook?key=TV_SECRET) ----
+app.use(tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR }));
+
+// ---- Start market data updater (emits priceUpdate) ----
+startMarketDataUpdater(io);
+
+// ---- Start server ----
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+  if (TV_SECRET) {
+    console.log('TradingView webhook enabled at:  POST /tv-webhook?key=***');
+  } else {
+    console.warn('TV_SECRET is NOT set. Set it in .env to secure /tv-webhook.');
+  }
+});

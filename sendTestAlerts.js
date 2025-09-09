@@ -22,7 +22,7 @@ async function sendRandomAlert() {
     };
 
     try {
-        await axios.post('http://localhost:786/sendAlert', newAlert);
+        await axios.post('http://localhost:2709/sendAlert', newAlert);
         console.log(newAlert); // only show the alert object
     } catch (err) {
         console.error('Error sending alert:', err.message);

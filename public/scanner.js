@@ -15,8 +15,15 @@ let priceData = {};
  */
 
 // ------- tolerance config (with persistence) -------
-const TOL_KEY = 'scanner_tolerances_v1';
-const defaultTolerances = { '5m': 0.50, '15m': 1.00, '1h': 2.00 };
+const TOL_KEY = 'scanner_tolerances_v2';
+// Added daymid + weeklymid defaults
+const defaultTolerances = {
+  '5m': 0.50,
+  '15m': 1.00,
+  '1h': 2.00,
+  'daymid': 1.00,
+  'weeklymid': 2.00
+};
 
 function loadTolerances() {
   try {
@@ -32,7 +39,7 @@ let tolerances = loadTolerances();
 
 /**
  * Override tolerances at runtime (persisted):
- *   window.setScannerTolerances({ '5m': 0.35, '15m': 0.9, '1h': 1.8 })
+ *   window.setScannerTolerances({ '5m': 0.35, '15m': 0.9, '1h': 1.8, daymid: 0.8, weeklymid: 1.6 })
  */
 window.setScannerTolerances = (overrides = {}) => {
   tolerances = { ...tolerances, ...overrides };
@@ -49,12 +56,11 @@ function toNumber(v) {
 }
 
 /**
- * Renders "metric (+/-diff)" and (optionally) highlights/blinks if |diff| <= tolerance.
+ * Renders "metric (+/-diff)" and highlights/blinks if |diff| <= tolerance.
  * label examples: "MA20(5m)" / "VWAP(15m)" / "DayMid" / "WeeklyMid"
- * timeframeKey: '5m' | '15m' | '1h' | undefined
- *  - If provided and tolerance exists, add near-zero blink. Otherwise just render diff.
+ * tolKey: '5m' | '15m' | '1h' | 'daymid' | 'weeklymid' | undefined
  */
-function setMetricWithDiffCell(td, price, metric, label, timeframeKey) {
+function setMetricWithDiffCell(td, price, metric, label, tolKey) {
   const p = toNumber(price);
   const m = toNumber(metric);
 
@@ -80,9 +86,9 @@ function setMetricWithDiffCell(td, price, metric, label, timeframeKey) {
   td.innerHTML = `${m.toFixed(2)} <span style="color:${color}">(${sign}${Math.abs(diff).toFixed(2)})</span>`;
   td.title = `Price: ${p.toFixed(2)}, ${label}: ${m.toFixed(2)}`;
 
-  // tolerance highlight + blink only for timeframe-based metrics (MA/VWAP)
-  if (timeframeKey) {
-    const tol = tolerances?.[timeframeKey];
+  // tolerance highlight + blink when tolKey provided and configured
+  if (tolKey) {
+    const tol = tolerances?.[tolKey];
     if (Number.isFinite(tol) && Math.abs(diff) <= tol) {
       td.classList.add('near-zero', 'blink');
     }
@@ -100,29 +106,29 @@ function renderTable() {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // HEADER ORDER (after moving Price next to Ticker):
-    // 0 Time, 1 Ticker, 2 Price, 3 Pivot Rel., 4 Trend,
-    // 5 Ai 5m, 6 MA20 (5m), 7 VWAP (5m),
-    // 8 Ai 15m, 9 MA20 (15m), 10 VWAP (15m),
-    // 11 Ai 1h, 12 MA20 (1h), 13 VWAP (1h),
-    // 14 DayMid, 15 WeeklyMid, 16 NCPR, 17 Pivot
+    // HEADER ORDER (with Price after Ticker, and DayMid/WeeklyMid next to Trend):
+    // 0 Time, 1 Ticker, 2 Price, 3 Pivot Rel., 4 Trend, 5 DayMid, 6 WeeklyMid,
+    // 7 Ai 5m, 8 MA20(5m), 9 VWAP(5m),
+    // 10 Ai 15m, 11 MA20(15m), 12 VWAP(15m),
+    // 13 Ai 1h, 14 MA20(1h), 15 VWAP(1h),
+    // 16 NCPR, 17 Pivot
     const columns = [
       a.Time,                    // 0
       a.Ticker,                  // 1
-      p.Price ?? '',             // 2  Price next to ticker
-      '',                        // 3  Pivot Rel.
-      '',                        // 4  Trend
-      a.AI_5m || '',             // 5
-      p.MA20_5m ?? '',           // 6
-      p.VWAP_5m ?? '',           // 7
-      a.AI_15m || '',            // 8
-      p.MA20_15m ?? '',          // 9
-      p.VWAP_15m ?? '',          // 10
-      a.AI_1h || '',             // 11
-      p.MA20_1h ?? '',           // 12
-      p.VWAP_1h ?? '',           // 13
-      p.DayMid ?? '',            // 14
-      p.WeeklyMid ?? '',         // 15
+      p.Price ?? '',             // 2
+      '',                        // 3 Pivot Rel.
+      '',                        // 4 Trend
+      p.DayMid ?? '',            // 5
+      p.WeeklyMid ?? '',         // 6
+      a.AI_5m || '',             // 7
+      p.MA20_5m ?? '',           // 8
+      p.VWAP_5m ?? '',           // 9
+      a.AI_15m || '',            // 10
+      p.MA20_15m ?? '',          // 11
+      p.VWAP_15m ?? '',          // 12
+      a.AI_1h || '',             // 13
+      p.MA20_1h ?? '',           // 14
+      p.VWAP_1h ?? '',           // 15
       a.NCPR || '',              // 16
       a.Pivot || ''              // 17
     ];
@@ -131,30 +137,30 @@ function renderTable() {
       const td = document.createElement('td');
 
       // AI signal columns (Buy/Sell color)
-      if (i === 5 || i === 8 || i === 11) {
+      if (i === 7 || i === 10 || i === 13) {
         td.textContent = c ?? '';
         if (c === 'Buy') td.style.color = 'green';
         else if (c === 'Sell') td.style.color = 'red';
       }
-      // MA/VWAP with tolerance-based blinking
-      else if (i === 6) {        // MA20 (5m)
+      // MA/VWAP with timeframe tolerances + blinking
+      else if (i === 8) {
         setMetricWithDiffCell(td, p.Price, p.MA20_5m, 'MA20(5m)', '5m');
-      } else if (i === 7) {      // VWAP (5m)
+      } else if (i === 9) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_5m, 'VWAP(5m)', '5m');
-      } else if (i === 9) {      // MA20 (15m)
+      } else if (i === 11) {
         setMetricWithDiffCell(td, p.Price, p.MA20_15m, 'MA20(15m)', '15m');
-      } else if (i === 10) {     // VWAP (15m)
+      } else if (i === 12) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_15m, 'VWAP(15m)', '15m');
-      } else if (i === 12) {     // MA20 (1h)
+      } else if (i === 14) {
         setMetricWithDiffCell(td, p.Price, p.MA20_1h, 'MA20(1h)', '1h');
-      } else if (i === 13) {     // VWAP (1h)
+      } else if (i === 15) {
         setMetricWithDiffCell(td, p.Price, p.VWAP_1h, 'VWAP(1h)', '1h');
       }
-      // DayMid / WeeklyMid: apply diff logic (no blink)
-      else if (i === 14) {       // DayMid
-        setMetricWithDiffCell(td, p.Price, p.DayMid, 'DayMid', undefined);
-      } else if (i === 15) {     // WeeklyMid
-        setMetricWithDiffCell(td, p.Price, p.WeeklyMid, 'WeeklyMid', undefined);
+      // DayMid / WeeklyMid: now also tolerance-highlight + blink (global keys)
+      else if (i === 5) {
+        setMetricWithDiffCell(td, p.Price, p.DayMid, 'DayMid', 'daymid');
+      } else if (i === 6) {
+        setMetricWithDiffCell(td, p.Price, p.WeeklyMid, 'WeeklyMid', 'weeklymid');
       }
       // Everything else plain text
       else {

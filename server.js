@@ -49,6 +49,8 @@ try {
 
 // ---------- Middleware ----------
 app.use(express.json({ limit: '1mb' }));
+app.use(express.text({ type: '*/*', limit: '1mb' })); // handles text/plain from TV
+
 
 // ---------- Static files ----------
 app.use(express.static(PUBLIC_DIR));

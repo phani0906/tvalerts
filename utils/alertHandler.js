@@ -1,114 +1,86 @@
-// server/alertHandler.js
 const fs = require('fs').promises;
 const path = require('path');
 
 const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
 
-function cleanString(v) {
-  return typeof v === 'string' ? v.trim() : v;
+function normTicker(t) {
+  if (!t) return '';
+  return String(t).toUpperCase().split(':').pop().trim(); // NASDAQ:AMD -> AMD
 }
-
-function normalizeAlert(incoming) {
-  const Ticker = String(cleanString(incoming.Ticker || incoming.ticker || '')).toUpperCase();
-  const Timeframe = String(cleanString(incoming.Timeframe || incoming.timeframe || ''));
-  const Alert = String(cleanString(incoming.Alert || incoming.alert || '')).toLowerCase() === 'sell' ? 'Sell' : 'Buy';
-  const Time = String(cleanString(incoming.Time || incoming.time || '') || '');
-
-  return { Ticker, Timeframe, Alert, Time, Zone: Alert === 'Buy' ? 'green' : 'red' };
+function normAlert(a) {
+  const v = String(a || '').toLowerCase();
+  return v === 'sell' ? 'Sell' : 'Buy'; // default Buy if unknown
 }
-
 async function readAlerts() {
   try {
-    const data = await fs.readFile(alertsFilePath, 'utf8');
-    if (!data) return [];
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code !== 'ENOENT') console.error('Error reading alerts.json:', err);
+    const raw = await fs.readFile(alertsFilePath, 'utf8');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('read alerts.json error:', e);
     return [];
   }
 }
-
 async function writeAlerts(arr) {
   try {
     await fs.writeFile(alertsFilePath, JSON.stringify(arr, null, 2));
-  } catch (err) {
-    console.error('Error writing alerts.json:', err);
+  } catch (e) {
+    console.error('write alerts.json error:', e);
   }
-}
-
-function applyAlertToRow(row, alert) {
-  // Ensure fields exist
-  row.Ticker = row.Ticker || alert.Ticker;
-  row.Time = alert.Time || row.Time || '';
-  row.AI_5m = row.AI_5m || '';
-  row.AI_15m = row.AI_15m || '';
-  row.AI_1h = row.AI_1h || '';
-
-  // Update the correct signal column
-  if (alert.Timeframe === 'AI_5m') row.AI_5m = alert.Alert;
-  else if (alert.Timeframe === 'AI_15m') row.AI_15m = alert.Alert;
-  else if (alert.Timeframe === 'AI_1h') row.AI_1h = alert.Alert;
-
-  // Always set the latest time + zone from the newest alert
-  if (alert.Time) row.Time = alert.Time;
-  row.Zone = alert.Zone;
-
-  return row;
-}
-
-function dedupeByTickerKeepLatest(list) {
-  // Keep only one row per Ticker; put the most recently updated first.
-  const seen = new Map();
-  for (const r of list) {
-    seen.set(r.Ticker, r);
-  }
-  // newest-first is: just take map values; but better: keep the incoming order with latest updates unshifted
-  return Array.from(seen.values());
 }
 
 function initAlertHandler(app, io) {
   app.post('/sendAlert', async (req, res) => {
     try {
-      const base = normalizeAlert(req.body || {});
+      // Optional shared secret (uncomment if you want it)
+      // if (process.env.TV_SECRET && req.query.key !== process.env.TV_SECRET) {
+      //   return res.status(403).send({ error: 'Forbidden' });
+      // }
 
-      if (!base.Ticker || !base.Timeframe || !base.Alert || !base.Time) {
-        return res.status(400).send({ error: 'Invalid alert format' });
+      // Handle text/plain from TradingView
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+
+      // Normalize incoming fields
+      const ticker     = normTicker(body.Ticker || body.ticker);
+      const timeframe  = String(body.Timeframe || body.timeframe || '').trim();
+      const alertText  = normAlert(body.Alert || body.alert);
+      const timeStr    = String(body.Time || body.time || '').trim();
+
+      // Only keep AI_5m alerts by design
+      if (!ticker || timeframe !== 'AI_5m' || !alertText || !timeStr) {
+        return res.status(400).send({ error: 'Invalid or non-5m alert' });
       }
 
-      console.log('Received alert:', base);
+      // Zone is AUTOMATIC from Buy/Sell
+      const zone = (alertText === 'Buy') ? 'green' : 'red';
 
-      // Load existing
-      let alerts = await readAlerts();
-
-      // Build an index by ticker
-      const byTicker = new Map(alerts.map(a => [a.Ticker, a]));
-
-      // Update existing row or create new
-      const existing = byTicker.get(base.Ticker) || {
-        Ticker: base.Ticker,
-        Time: '',
-        AI_5m: '',
-        AI_15m: '',
-        AI_1h: '',
-        Zone: base.Zone
+      const incoming = {
+        Ticker: ticker,
+        Time: timeStr,   // store whatever TV sends; UI just shows it
+        AI_5m: alertText,
+        Zone: zone
       };
 
-      const updated = applyAlertToRow(existing, base);
-      byTicker.set(base.Ticker, updated);
+      console.log('Received alert:', JSON.stringify(incoming));
 
-      // Rebuild list: put the updated ticker at the TOP, then the rest (without duplicates)
-      const rest = alerts.filter(a => a.Ticker !== base.Ticker);
-      alerts = [updated, ...rest];
+      // Upsert one row per ticker
+      let alerts = await readAlerts();
+      const idx = alerts.findIndex(r => r.Ticker === ticker);
 
-      // Final safety: ensure 1 per ticker
-      alerts = dedupeByTickerKeepLatest(alerts);
+      if (idx !== -1) {
+        // update row
+        alerts[idx].AI_5m = incoming.AI_5m;
+        alerts[idx].Time  = incoming.Time;
+        alerts[idx].Zone  = incoming.Zone;
+      } else {
+        // add new to the top
+        alerts.unshift(incoming);
+      }
 
+      // Persist and broadcast
       await writeAlerts(alerts);
-
-      // Broadcast de-duped alerts
       io.emit('alertsUpdate', alerts);
 
-      res.status(200).send({ success: true });
+      res.json({ success: true });
     } catch (e) {
       console.error('sendAlert error:', e);
       res.status(500).send({ error: 'Internal error' });

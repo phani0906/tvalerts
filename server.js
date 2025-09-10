@@ -7,9 +7,9 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// ---- Helpers (now in utils/) ----
+// ---- Helpers (from utils/) ----
 const { initAlertHandler } = require('./utils/alertHandler');
-startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000 /*, includeExtraTF: true if needed */ });
+const { startMarketDataUpdater } = require('./utils/marketData');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 
 // ---- App + Server + IO ----
@@ -22,10 +22,10 @@ const io = new Server(server, {
 // ---- Config ----
 const PORT = process.env.PORT || 2709;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // on Render set: /persist/tvalerts
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // Render: /persist/tvalerts
 const TV_SECRET = process.env.TV_SECRET || ''; // optional: protects /tv-webhook
 
-// Ensure DATA_DIR exists (Render disk or local ./data)
+// Ensure DATA_DIR exists
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 } catch (e) {
@@ -34,14 +34,11 @@ try {
 
 // ---- Middleware ----
 app.use(express.json({ limit: '1mb' }));
-// If your UI is hosted elsewhere, uncomment CORS below
 // const cors = require('cors');
-// app.use(cors({ origin: '*', methods: ['GET','POST'] }));
+// app.use(cors({ origin: '*' }));
 
 // ---- Static files ----
 app.use(express.static(PUBLIC_DIR));
-
-// Always serve scanner at root for convenience
 app.get('/', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'scanner.html'));
 });
@@ -51,20 +48,20 @@ app.get('/health', (_req, res) => {
   res.status(200).send({ ok: true, time: new Date().toISOString() });
 });
 
-// ---- Socket.IO logging (optional) ----
+// ---- Socket.IO logging ----
 io.on('connection', socket => {
   console.log('Client connected:', socket.id);
   socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
 });
 
-// ---- Alerts endpoint (/sendAlert) + SSE to clients ----
+// ---- Alerts endpoint (/sendAlert) ----
 initAlertHandler(app, io, { dataDir: DATA_DIR });
 
 // ---- TradingView webhook (/tv-webhook?key=TV_SECRET) ----
 app.use(tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR }));
 
 // ---- Price updater (emits priceUpdate) ----
-startMarketDataUpdater(io, { dataDir: DATA_DIR });
+startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000 });
 
 // ---- Start server ----
 server.listen(PORT, () => {

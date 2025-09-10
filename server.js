@@ -8,11 +8,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 // ---- Modules you already have ----
-const { initAlertHandler } = require('./server/alertHandler'); // your code pasted earlier
-const { startMarketDataUpdater } = require('./server/marketData'); // your market data poller
+const { initAlertHandler } = require('./utils/alertHandler'); // your code pasted earlier
+const { startMarketDataUpdater } = require('./utils/marketData'); // your market data poller
 
 // ---- (New) TradingView webhook router ----
-const tvWebhookRouterFactory = require('./server/tvWebhook'); // see file contents below
+const tvWebhookRouterFactory = require('./utils/tvWebhook'); // see file contents below
 
 // ---- App + Server + IO ----
 const app = express();

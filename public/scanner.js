@@ -8,17 +8,25 @@ let priceData = {};
    Configurable tolerances
    ========================= */
 const TOLERANCE = {
-  ma20_5m: 0.50,  // 50 cents
-  vwap_5m: 0.50,  // 50 cents
-  daymid: 1.00    // $1
+  ma20_5m: 0.50,   // highlight if |Price - MA20(5m)| <= $0.50
+  vwap_5m: 0.50,   // highlight if |Price - VWAP(5m)| <= $0.50
+  daymid:  1.00    // highlight if |Price - DayMid| <= $1.00
 };
 
 /* =========================
    Helpers
    ========================= */
-const toNum = v => (v === null || v === undefined || v === '' || v === 'N/A') ? null : Number(v);
-const fmt2  = v => (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
+const toNum = v =>
+  (v === null || v === undefined || v === '' || v === 'N/A') ? null : Number(v);
 
+const fmt2 = v =>
+  (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
+
+/**
+ * Fill a metric cell with "VALUE (+/-DIFF)" vs current price.
+ * Adds gold 4-sided blinking border if |diff| <= tolerance via
+ * CSS classes: `near-zero blink` (your CSS handles the animation).
+ */
 function fillMetricCell(td, metricVal, price, tolerance) {
   td.classList.remove('near-zero', 'blink');
   td.textContent = '';
@@ -29,7 +37,7 @@ function fillMetricCell(td, metricVal, price, tolerance) {
   if (m === null) { td.textContent = ''; return; }
   if (p === null) { td.textContent = fmt2(m); return; }
 
-  const diff = p - m;
+  const diff = p - m; // positive means price above metric
   const diffStr = `${diff >= 0 ? '+' : ''}${fmt2(diff)}`;
 
   const base = document.createElement('span');
@@ -50,7 +58,7 @@ function fillMetricCell(td, metricVal, price, tolerance) {
 }
 
 /* =========================
-   Main render
+   Main render (5m alerts only)
    ========================= */
 function renderTable() {
   const buyTbody = document.querySelector('#scannerTableBuy tbody');
@@ -59,10 +67,10 @@ function renderTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  // ✅ Only keep rows that have a 5m alert
-  const filtered = alerts.filter(a => a.AI_5m);
+  // Only rows with a 5m signal
+  const rows = (alerts || []).filter(a => a.AI_5m);
 
-  filtered.forEach(a => {
+  rows.forEach(a => {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
@@ -81,29 +89,30 @@ function renderTable() {
     td.textContent = fmt2(toNum(p.Price));
     row.appendChild(td);
 
-    // 3 Alert (AI_5m only)
+    // 3 Alert (5m only)
     td = document.createElement('td');
     td.textContent = a.AI_5m || '';
     if (td.textContent === 'Buy') td.classList.add('signal-buy');
     else if (td.textContent === 'Sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // 4 MA20(5m) vs Price
+    // 4 MA20(5m) vs Price — near-zero blink if within tolerance
     td = document.createElement('td');
     fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m);
     row.appendChild(td);
 
-    // 5 VWAP(5m) vs Price
+    // 5 VWAP(5m) vs Price — near-zero blink if within tolerance
     td = document.createElement('td');
     fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m);
     row.appendChild(td);
 
-    // 6 DayMid vs Price
+    // 6 DayMid vs Price — near-zero blink if within tolerance
     td = document.createElement('td');
     fillMetricCell(td, p.DayMid, p.Price, TOLERANCE.daymid);
     row.appendChild(td);
 
-    if (a.Zone === 'green') buyTbody.appendChild(row);
+    // Place into Green or Red zone based on latest 5m signal
+    if (a.AI_5m === 'Buy') buyTbody.appendChild(row);
     else sellTbody.appendChild(row);
   });
 }

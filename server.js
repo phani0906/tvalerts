@@ -7,7 +7,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// ---------- Crash guards: log everything ----------
+// ---------- Crash guards ----------
 process.on('uncaughtException', (e) => {
   console.error('[uncaughtException]', e && e.stack || e);
 });
@@ -19,7 +19,7 @@ process.on('unhandledRejection', (e) => {
 const { initAlertHandler } = require('./utils/alertHandler');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 
-// Market data is optional at boot so the app still serves even if deps are missing
+// Optional market data
 let startMarketDataUpdater = null;
 try {
   ({ startMarketDataUpdater } = require('./utils/marketData'));
@@ -36,10 +36,10 @@ const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } 
 // ---------- Config ----------
 const PORT = process.env.PORT || 2709;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // e.g. /persist/tvalerts on Render
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // persistent dir on Render
 const TV_SECRET = process.env.TV_SECRET || ''; // optional
 
-// Ensure DATA_DIR exists (works with local folder or mounted disk)
+// Ensure DATA_DIR exists
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   console.log('[boot] DATA_DIR ready:', DATA_DIR);
@@ -47,21 +47,45 @@ try {
   console.warn('[boot] could not ensure DATA_DIR:', DATA_DIR, e.message);
 }
 
+// Path to alerts store
+const alertsFilePath = path.join(DATA_DIR, 'alerts.json');
+
+// Small helper to read the current snapshot safely
+function readAlertsSnapshot() {
+  try {
+    if (!fs.existsSync(alertsFilePath)) return [];
+    const raw = fs.readFileSync(alertsFilePath, 'utf8').trim();
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('readAlertsSnapshot error:', e);
+    return [];
+  }
+}
+
 // ---------- Middleware ----------
 app.use(express.json({ limit: '1mb' }));
-app.use(express.text({ type: '*/*', limit: '1mb' })); // handles text/plain from TV
+app.use(express.text({ type: '*/*', limit: '1mb' })); // handles text/plain from TradingView
 
-
-// ---------- Static files ----------
+// ---------- Static ----------
 app.use(express.static(PUBLIC_DIR));
 app.get('/', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'scanner.html')));
 
 // ---------- Health ----------
 app.get('/health', (_req, res) => res.status(200).send({ ok: true, time: new Date().toISOString() }));
 
-// ---------- Socket.IO logging ----------
-io.on('connection', socket => {
+// ---------- Snapshot API (debug / page bootstrap) ----------
+app.get('/alerts', (_req, res) => {
+  res.json(readAlertsSnapshot());
+});
+
+// ---------- Socket.IO ----------
+io.on('connection', (socket) => {
   console.log('[socket] connected:', socket.id);
+
+  // Immediately send the latest snapshot so the UI has data even
+  // when no new alerts are firing.
+  socket.emit('alertsUpdate', readAlertsSnapshot());
+
   socket.on('disconnect', () => console.log('[socket] disconnected:', socket.id));
 });
 

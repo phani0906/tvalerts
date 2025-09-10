@@ -3,7 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <title>Trading Scanner</title>
-  <link rel="stylesheet" href="scanner.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="scanner.css?v=3" />
+  <style>
+    /* Optional tiny safety styles if scanner.css isn't loaded */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; }
+    h2 { margin: 0 0 12px; }
+    .table-container { margin: 18px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+    .buy-title { color: #0a0; }
+    .sell-title { color: #c00; }
+    .near-zero { font-weight: 600; }
+    .blink { animation: bl 0.9s linear infinite; }
+    @keyframes bl { 50% { opacity: 0.35; } }
+  </style>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -19,19 +33,7 @@
           <th>MA20 (5m)</th>
           <th>VWAP (5m)</th>
           <th>DayMid</th>
-          <!-- <th>Price</th>
-          <th>Pivot Rel.</th>
-          <th>Trend</th>
-          <th>WeeklyMid</th>
-          <th>Ai 5min</th>
-          <th>Ai 15min</th>
-          <th>MA20 (15m)</th>
-          <th>VWAP (15m)</th>
-          <th>Ai 1Hr</th>
-          <th>MA20 (1h)</th>
-          <th>VWAP (1h)</th>
-          <th>NCPR</th>
-          <th>Pivot</th> -->
+          <!-- Other columns kept out for now -->
         </tr>
       </thead>
       <tbody></tbody>
@@ -48,25 +50,32 @@
           <th>MA20 (5m)</th>
           <th>VWAP (5m)</th>
           <th>DayMid</th>
-          <!-- <th>Price</th>
-          <th>Pivot Rel.</th>
-          <th>Trend</th>
-          <th>WeeklyMid</th>
-          <th>Ai 5min</th>
-          <th>Ai 15min</th>
-          <th>MA20 (15m)</th>
-          <th>VWAP (15m)</th>
-          <th>Ai 1Hr</th>
-          <th>MA20 (1h)</th>
-          <th>VWAP (1h)</th>
-          <th>NCPR</th>
-          <th>Pivot</th> -->
+          <!-- Other columns kept out for now -->
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
 
-  <script src="scanner.js"></script>
+  <!-- IMPORTANT: cache-buster so browser pulls the latest JS -->
+  <script src="scanner.js?v=4"></script>
+
+  <!-- Optional: small guard to log socket connectivity from scanner.js -->
+  <script>
+    // If your scanner.js sets up `socket`, these hooks will show in console:
+    (function waitForSocket(){
+      const tries = 20;
+      let n = 0;
+      const id = setInterval(() => {
+        n++;
+        if (window.socket && typeof window.socket.on === 'function') {
+          console.log('[scanner.html] socket present');
+          clearInterval(id);
+          return;
+        }
+        if (n >= tries) clearInterval(id);
+      }, 250);
+    })();
+  </script>
 </body>
 </html>

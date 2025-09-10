@@ -7,7 +7,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// ---- Helpers (from utils/) ----
+// ---- Helpers (in utils/) ----
 const { initAlertHandler } = require('./utils/alertHandler');
 const { startMarketDataUpdater } = require('./utils/marketData');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
@@ -25,7 +25,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // Render: /persist/tvalerts
 const TV_SECRET = process.env.TV_SECRET || ''; // optional: protects /tv-webhook
 
-// Ensure DATA_DIR exists
+// Ensure DATA_DIR exists (disk mount on Render or local ./data)
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 } catch (e) {
@@ -34,11 +34,14 @@ try {
 
 // ---- Middleware ----
 app.use(express.json({ limit: '1mb' }));
+// If your UI is hosted elsewhere, you can enable CORS:
 // const cors = require('cors');
-// app.use(cors({ origin: '*' }));
+// app.use(cors({ origin: '*', methods: ['GET','POST'] }));
 
 // ---- Static files ----
 app.use(express.static(PUBLIC_DIR));
+
+// Serve scanner at root
 app.get('/', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'scanner.html'));
 });
@@ -48,7 +51,7 @@ app.get('/health', (_req, res) => {
   res.status(200).send({ ok: true, time: new Date().toISOString() });
 });
 
-// ---- Socket.IO logging ----
+// ---- Socket.IO logging (optional) ----
 io.on('connection', socket => {
   console.log('Client connected:', socket.id);
   socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
@@ -61,7 +64,7 @@ initAlertHandler(app, io, { dataDir: DATA_DIR });
 app.use(tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR }));
 
 // ---- Price updater (emits priceUpdate) ----
-startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000 });
+startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000 /* , includeExtraTF: true */ });
 
 // ---- Start server ----
 server.listen(PORT, () => {

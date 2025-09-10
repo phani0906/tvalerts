@@ -1,12 +1,11 @@
-// public/scanner.js
-// Minimal scanner client: shows Time, Ticker, MA20(5m), VWAP(5m), DayMid
+// Minimal scanner client with Alert column + Buy/Sell coloring
 
 (function () {
   const socket = io();
-  window.socket = socket; // for quick debugging in DevTools
+  window.socket = socket; // for quick debugging
 
   let alerts = [];
-  let priceData = {}; // { TICKER: { MA20_5m, VWAP_5m, DayMid, Price?... } }
+  let priceData = {}; // { TICKER: { MA20_5m, VWAP_5m, DayMid, ... } }
 
   // ---- helpers ----
   function fmt(v) {
@@ -16,9 +15,14 @@
     return String(v);
   }
 
+  function getAlertText(a) {
+    // prefer explicit Alert, fall back to timeframe fields
+    return (a.Alert || a.AI_5m || a.AI_15m || a.AI_1h || '').toString();
+  }
+
   function inferZone(a) {
     if (a.Zone) return a.Zone;
-    const s = (a.Alert || a.AI_5m || a.AI_15m || a.AI_1h || '').toString().toLowerCase();
+    const s = getAlertText(a).toLowerCase();
     if (s.includes('sell')) return 'red';
     if (s.includes('buy')) return 'green';
     return 'green';
@@ -36,19 +40,39 @@
       const p = priceData[a.Ticker] || {};
       const row = document.createElement('tr');
 
-      const cols = [
-        a.Time || '',
-        a.Ticker || '',
-        fmt(p.MA20_5m),
-        fmt(p.VWAP_5m),
-        fmt(p.DayMid),
-      ];
+      // Time
+      const tdTime = document.createElement('td');
+      tdTime.textContent = a.Time || '';
+      row.appendChild(tdTime);
 
-      for (const c of cols) {
-        const td = document.createElement('td');
-        td.textContent = c ?? '';
-        row.appendChild(td);
-      }
+      // Ticker
+      const tdTicker = document.createElement('td');
+      tdTicker.textContent = a.Ticker || '';
+      row.appendChild(tdTicker);
+
+      // Alert (colored Buy/Sell)
+      const tdAlert = document.createElement('td');
+      const alertText = getAlertText(a);
+      tdAlert.textContent = alertText;
+      const lc = alertText.toLowerCase();
+      if (lc.includes('buy')) tdAlert.style.color = 'green';
+      else if (lc.includes('sell')) tdAlert.style.color = 'red';
+      row.appendChild(tdAlert);
+
+      // MA20 (5m)
+      const tdMA = document.createElement('td');
+      tdMA.textContent = fmt(p.MA20_5m);
+      row.appendChild(tdMA);
+
+      // VWAP (5m)
+      const tdVW = document.createElement('td');
+      tdVW.textContent = fmt(p.VWAP_5m);
+      row.appendChild(tdVW);
+
+      // DayMid
+      const tdDM = document.createElement('td');
+      tdDM.textContent = fmt(p.DayMid);
+      row.appendChild(tdDM);
 
       const zone = inferZone(a);
       if (zone === 'green') buyTbody.appendChild(row);
@@ -57,9 +81,7 @@
   }
 
   // ---- socket.io listeners ----
-  socket.on('connect', () => {
-    console.log('[socket] connected', socket.id);
-  });
+  socket.on('connect', () => console.log('[socket] connected', socket.id));
 
   socket.on('alertsUpdate', (data) => {
     console.log('[socket] alertsUpdate', Array.isArray(data) ? data.length : data);
@@ -73,7 +95,7 @@
     renderTable();
   });
 
-  // ---- initial fetch fallback (in case we connect after the first emit) ----
+  // ---- initial fetch (in case we connected after the first emit) ----
   fetch('/alerts')
     .then((r) => r.json())
     .then((data) => {

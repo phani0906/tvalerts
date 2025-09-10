@@ -5,23 +5,10 @@
   <title>Trading Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Your stylesheet (add ?v= to bust cache when you update it) -->
-  <link rel="stylesheet" href="scanner.css?v=1" />
+  <!-- Keep your original look & feel here -->
+  <link rel="stylesheet" href="scanner.css?v=2" />
 
-  <!-- Tiny fallback styles in case scanner.css fails to load -->
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; }
-    h2 { margin: 0 0 12px; }
-    .table-container { margin: 18px 0; }
-    .table-title { margin: 0 0 8px; }
-    .buy-title { color: #0a0; }
-    .sell-title { color: #c00; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-variant-numeric: tabular-nums; }
-    thead th { background: #f7f7f7; }
-  </style>
-
-  <!-- Socket.IO client (served by your Node app) -->
+  <!-- Socket.IO client -->
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -35,6 +22,7 @@
         <tr>
           <th>Time</th>
           <th>Ticker</th>
+          <th>Alert</th>
           <th>MA20 (5m)</th>
           <th>VWAP (5m)</th>
           <th>DayMid</th>
@@ -52,6 +40,7 @@
         <tr>
           <th>Time</th>
           <th>Ticker</th>
+          <th>Alert</th>
           <th>MA20 (5m)</th>
           <th>VWAP (5m)</th>
           <th>DayMid</th>
@@ -61,7 +50,7 @@
     </table>
   </div>
 
-  <!-- Your client logic (bump ?v= when you update scanner.js to avoid caching) -->
-  <script src="scanner.js?v=8"></script>
+  <!-- bump ?v when you update scanner.js to bypass browser cache -->
+  <script src="scanner.js?v=9"></script>
 </body>
 </html>

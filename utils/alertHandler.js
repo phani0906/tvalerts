@@ -1,99 +1,119 @@
-// utils/alertHandler.js
-const fs = require('fs');
+// server/alertHandler.js
+const fs = require('fs').promises;
 const path = require('path');
 
-function ensureDir(p) {
-  try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
+
+function cleanString(v) {
+  return typeof v === 'string' ? v.trim() : v;
 }
 
-function safeLoad(file) {
+function normalizeAlert(incoming) {
+  const Ticker = String(cleanString(incoming.Ticker || incoming.ticker || '')).toUpperCase();
+  const Timeframe = String(cleanString(incoming.Timeframe || incoming.timeframe || ''));
+  const Alert = String(cleanString(incoming.Alert || incoming.alert || '')).toLowerCase() === 'sell' ? 'Sell' : 'Buy';
+  const Time = String(cleanString(incoming.Time || incoming.time || '') || '');
+
+  return { Ticker, Timeframe, Alert, Time, Zone: Alert === 'Buy' ? 'green' : 'red' };
+}
+
+async function readAlerts() {
   try {
-    if (!fs.existsSync(file)) return [];
-    const raw = fs.readFileSync(file, 'utf8').trim();
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.warn('[alertHandler] load failed:', e.message);
+    const data = await fs.readFile(alertsFilePath, 'utf8');
+    if (!data) return [];
+    return JSON.parse(data);
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('Error reading alerts.json:', err);
     return [];
   }
 }
 
-function safeSave(file, obj) {
+async function writeAlerts(arr) {
   try {
-    ensureDir(file);
-    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
-  } catch (e) {
-    console.warn('[alertHandler] save skipped (non-fatal):', e.message);
+    await fs.writeFile(alertsFilePath, JSON.stringify(arr, null, 2));
+  } catch (err) {
+    console.error('Error writing alerts.json:', err);
   }
 }
 
-function computeZone(a) {
-  const hint = (a.Alert || a.AI_5m || a.AI_15m || a.AI_1h || '').toString().toLowerCase();
-  if (a.Zone) return a.Zone;
-  if (hint.includes('sell')) return 'red';
-  if (hint.includes('buy'))  return 'green';
-  return 'green';
+function applyAlertToRow(row, alert) {
+  // Ensure fields exist
+  row.Ticker = row.Ticker || alert.Ticker;
+  row.Time = alert.Time || row.Time || '';
+  row.AI_5m = row.AI_5m || '';
+  row.AI_15m = row.AI_15m || '';
+  row.AI_1h = row.AI_1h || '';
+
+  // Update the correct signal column
+  if (alert.Timeframe === 'AI_5m') row.AI_5m = alert.Alert;
+  else if (alert.Timeframe === 'AI_15m') row.AI_15m = alert.Alert;
+  else if (alert.Timeframe === 'AI_1h') row.AI_1h = alert.Alert;
+
+  // Always set the latest time + zone from the newest alert
+  if (alert.Time) row.Time = alert.Time;
+  row.Zone = alert.Zone;
+
+  return row;
 }
 
-function normalizeAlert(a) {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2,'0');
-  const mm = String(now.getMinutes()).padStart(2,'0');
-  return {
-    Time: a.Time || `${hh}:${mm}`,
-    Ticker: (a.Ticker || a.symbol || a.ticker || 'UNKNOWN').toUpperCase(),
-    Alert: a.Alert ?? a.alert,
-    AI_5m: a.AI_5m ?? a.AI5m ?? a.signal5m,
-    AI_15m: a.AI_15m ?? a.AI15m ?? a.signal15m,
-    AI_1h: a.AI_1h ?? a.AI1h ?? a.signal1h,
-    NCPR: a.NCPR ?? a.ncpr,
-    Pivot: a.Pivot ?? a.pivot,
-    Zone: computeZone(a),
-    ...a
-  };
+function dedupeByTickerKeepLatest(list) {
+  // Keep only one row per Ticker; put the most recently updated first.
+  const seen = new Map();
+  for (const r of list) {
+    seen.set(r.Ticker, r);
+  }
+  // newest-first is: just take map values; but better: keep the incoming order with latest updates unshifted
+  return Array.from(seen.values());
 }
 
-function initAlertHandler(app, io, { dataDir }) {
-  const file = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
-  let alerts = safeLoad(file);
-
-  // For quick inspection
-  app.get('/alerts', (_req, res) => res.json(alerts));
-
-  // Accept single alert object or array of alerts
-  app.post('/sendAlert', (req, res) => {
+function initAlertHandler(app, io) {
+  app.post('/sendAlert', async (req, res) => {
     try {
-      const incoming = Array.isArray(req.body) ? req.body : [req.body];
-      const normalized = incoming.map(normalizeAlert);
+      const base = normalizeAlert(req.body || {});
 
-      // Prepend newest; cap list
-      alerts = [...normalized, ...alerts].slice(0, 500);
+      if (!base.Ticker || !base.Timeframe || !base.Alert || !base.Time) {
+        return res.status(400).send({ error: 'Invalid alert format' });
+      }
 
-      // Persist + notify UI
-      safeSave(file, alerts);
+      console.log('Received alert:', base);
+
+      // Load existing
+      let alerts = await readAlerts();
+
+      // Build an index by ticker
+      const byTicker = new Map(alerts.map(a => [a.Ticker, a]));
+
+      // Update existing row or create new
+      const existing = byTicker.get(base.Ticker) || {
+        Ticker: base.Ticker,
+        Time: '',
+        AI_5m: '',
+        AI_15m: '',
+        AI_1h: '',
+        Zone: base.Zone
+      };
+
+      const updated = applyAlertToRow(existing, base);
+      byTicker.set(base.Ticker, updated);
+
+      // Rebuild list: put the updated ticker at the TOP, then the rest (without duplicates)
+      const rest = alerts.filter(a => a.Ticker !== base.Ticker);
+      alerts = [updated, ...rest];
+
+      // Final safety: ensure 1 per ticker
+      alerts = dedupeByTickerKeepLatest(alerts);
+
+      await writeAlerts(alerts);
+
+      // Broadcast de-duped alerts
       io.emit('alertsUpdate', alerts);
-      console.log('[emit] alertsUpdate ->', alerts.length);
 
-      return res.json({ ok: true, added: normalized.length });
+      res.status(200).send({ success: true });
     } catch (e) {
       console.error('sendAlert error:', e);
-      return res.status(400).json({ ok: false, error: e.message });
+      res.status(500).send({ error: 'Internal error' });
     }
   });
-
-  // Emit current alerts shortly after boot so the UI fills on first connect
-  setTimeout(() => {
-    io.emit('alertsUpdate', alerts);
-    console.log('[emit] initial alertsUpdate ->', alerts.length);
-  }, 300);
-
-  return {
-    getAlerts: () => alerts,
-    setAlerts: (arr) => {
-      alerts = Array.isArray(arr) ? arr : [];
-      safeSave(file, alerts);
-      io.emit('alertsUpdate', alerts);
-    }
-  };
 }
 
 module.exports = { initAlertHandler };

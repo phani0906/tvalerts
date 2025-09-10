@@ -1,6 +1,7 @@
-// marketData.js — MA20 + session VWAP (5m, 15m, 1h)
-// VWAP = sum(typicalPrice * volume) / sum(volume) for today's session only,
-// where typicalPrice = (high + low + close) / 3
+// utils/marketData.js
+// Computes MA20 + session VWAP (5m) for tickers present in alerts.json
+// Session VWAP: sum(typicalPrice * volume) / sum(volume) for today's session
+// typicalPrice = (high + low + close) / 3
 
 const fs = require('fs');
 const path = require('path');
@@ -9,24 +10,23 @@ const yahooFinance = require('yahoo-finance2').default;
 // Optional: silence Yahoo survey banner
 yahooFinance.suppressNotices?.(['yahooSurvey']);
 
-const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
-
-// -------------------- helpers --------------------
-function sma(values, length = 20) {
-  const last = values.slice(-length);
-  if (last.length < length) return null;
-  const sum = last.reduce((a, b) => a + b, 0);
-  return sum / length;
-}
+// -------------------- small helpers --------------------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num = v => (isNum(v) ? v : NaN);
 
-// Build a day key in the exchange's local time using gmtoffset (seconds)
+function sma(values, length = 20) {
+  const last = values.slice(-length);
+  if (last.length < length) return null;
+  let sum = 0;
+  for (let i = 0; i < last.length; i++) sum += last[i];
+  return sum / length;
+}
+
+// Build a local "day key" using the exchange gmtoffset (seconds)
 function dayKeyWithOffset(dateObj, gmtoffsetSec) {
   if (!(dateObj instanceof Date)) return null;
   const epochSec = Math.floor(dateObj.getTime() / 1000);
   const shifted = new Date((epochSec + (gmtoffsetSec || 0)) * 1000);
-  // Use UTC getters after shift to avoid timezone complexity
   const y = shifted.getUTCFullYear();
   const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
   const d = String(shifted.getUTCDate()).padStart(2, '0');
@@ -37,7 +37,6 @@ function dayKeyWithOffset(dateObj, gmtoffsetSec) {
 function sessionVWAP(bars, gmtoffsetSec) {
   if (!Array.isArray(bars) || bars.length === 0) return null;
 
-  // Determine the "current session" day key from the last bar
   const lastBar = bars[bars.length - 1];
   const lastKey = dayKeyWithOffset(lastBar.date, gmtoffsetSec);
   if (!lastKey) return null;
@@ -50,7 +49,6 @@ function sessionVWAP(bars, gmtoffsetSec) {
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
 
-    // typical price; fall back to close if h/l missing
     const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
                isNum(c) ? c : NaN;
     if (!isNum(tp)) continue;
@@ -63,15 +61,11 @@ function sessionVWAP(bars, gmtoffsetSec) {
 }
 
 // -------------------- caching --------------------
-// Cache the parsed series per ticker/interval, respect different TTLs
-const cache = {
-  // [ticker]: {
-  //   '5m':  { ts, closes, bars, gmtoffsetSec },
-  //   '15m': { ts, closes, bars, gmtoffsetSec },
-  //   '1h':  { ts, closes, bars, gmtoffsetSec }
-  // }
-};
-
+/**
+ * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
+ * key: '5m' | '15m' | '1h'
+ */
+const cache = {};
 const TTL = { '5m': 60_000, '15m': 120_000, '1h': 300_000 }; // 1m / 2m / 5m
 const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
 const INTERVAL = { '5m': '5m', '15m': '15m', '1h': '1h' };
@@ -118,19 +112,14 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
   const quotes = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
 
-  // Build arrays of closes and full bars with dates
   const closes = [];
   const bars = [];
   for (const q of quotes) {
-    const close = q?.close;
-    if (isNum(close)) closes.push(close);
-
-    // Date robustly: yahoo-finance2 usually gives q.date (Date)
+    if (isNum(q?.close)) closes.push(q.close);
     let d = q?.date instanceof Date ? q.date : null;
     if (!d && typeof q?.timestamp === 'number') d = new Date(q.timestamp * 1000);
-
     bars.push({
-      date: d || new Date(), // fallback shouldn't happen often
+      date: d || new Date(),
       open: q?.open,
       high: q?.high,
       low: q?.low,
@@ -180,76 +169,96 @@ async function fetchQuoteSummary(ticker) {
       ? Number(((dayLow + dayHigh) / 2).toFixed(2))
       : 'N/A';
 
-    const wLow = num(quote.summaryDetail?.fiftyTwoWeekLow);
-    const wHigh = num(quote.summaryDetail?.fiftyTwoWeekHigh);
-    const WeeklyMid = (isNum(wLow) && isNum(wHigh))
-      ? Number(((wLow + wHigh) / 2).toFixed(2))
-      : 'N/A';
-
-    return { Price, DayMid, WeeklyMid };
+    return { Price, DayMid };
   } catch (err) {
     console.error(`quoteSummary error ${ticker}:`, err.message);
-    return { Price: 'Error', DayMid: 'Error', WeeklyMid: 'Error' };
+    return { Price: 'Error', DayMid: 'Error' };
   }
 }
 
-async function fetchTickerData(ticker) {
-  const [
-    summary,
-    ma5, vw5,
-    ma15, vw15,
-    mah, vwh
-  ] = await Promise.all([
+async function fetchTickerData(ticker, opts = {}) {
+  const { includeExtraTF = false } = opts; // set true if you re-enable 15m/1h in UI
+
+  if (!includeExtraTF) {
+    // minimal set for your current table
+    const [summary, ma5, vw5] = await Promise.all([
+      fetchQuoteSummary(ticker),
+      fetchMA20(ticker, '5m'),
+      fetchVWAP(ticker, '5m'),
+    ]);
+    return {
+      Price: summary.Price,
+      DayMid: summary.DayMid,
+      MA20_5m: ma5,
+      VWAP_5m: vw5,
+    };
+  }
+
+  // full set (if/when you bring the extra columns back)
+  const [summary, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
     fetchQuoteSummary(ticker),
-
-    fetchMA20(ticker, '5m'),
-    fetchVWAP(ticker, '5m'),
-
-    fetchMA20(ticker, '15m'),
-    fetchVWAP(ticker, '15m'),
-
-    fetchMA20(ticker, '1h'),
-    fetchVWAP(ticker, '1h')
+    fetchMA20(ticker, '5m'),  fetchVWAP(ticker, '5m'),
+    fetchMA20(ticker, '15m'), fetchVWAP(ticker, '15m'),
+    fetchMA20(ticker, '1h'),  fetchVWAP(ticker, '1h'),
   ]);
-
   return {
     Price: summary.Price,
     DayMid: summary.DayMid,
-    WeeklyMid: summary.WeeklyMid,
-    MA20_5m: ma5,
-    VWAP_5m: vw5,
-    MA20_15m: ma15,
-    VWAP_15m: vw15,
-    MA20_1h: mah,
-    VWAP_1h: vwh
+    MA20_5m: ma5,  VWAP_5m: vw5,
+    MA20_15m: ma15, VWAP_15m: vw15,
+    MA20_1h: mah,  VWAP_1h: vwh,
   };
 }
 
+// -------------------- alerts loader --------------------
+function safeLoadAlerts(file) {
+  try {
+    if (!fs.existsSync(file)) return [];
+    const raw = fs.readFileSync(file, 'utf8').trim();
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('[marketData] Invalid alerts.json:', e.message);
+    return [];
+  }
+}
+
 // -------------------- updater loop --------------------
-function startMarketDataUpdater(io) {
+/**
+ * startMarketDataUpdater(io, { dataDir, intervalMs, includeExtraTF })
+ *  - dataDir: required (server passes DATA_DIR)
+ *  - intervalMs: default 5000
+ *  - includeExtraTF: false by default (only 5m metrics)
+ */
+function startMarketDataUpdater(io, opts = {}) {
+  const {
+    dataDir,
+    intervalMs = 5000,
+    includeExtraTF = false,
+  } = opts;
+
+  const alertsFilePath = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
+
   setInterval(async () => {
     try {
-      if (!fs.existsSync(alertsFilePath)) return;
-      const raw = fs.readFileSync(alertsFilePath, 'utf8').trim();
-      if (!raw) return;
-
-      let alerts;
-      try { alerts = JSON.parse(raw); }
-      catch (e) { console.error('Invalid alerts.json JSON:', e.message); return; }
-
+      const alerts = safeLoadAlerts(alertsFilePath);
       const tickers = [...new Set(alerts.map(a => a.Ticker).filter(Boolean))];
       if (tickers.length === 0) return;
 
       const entries = await Promise.all(
-        tickers.map(async t => [t, await fetchTickerData(t)])
+        tickers.map(async t => [t, await fetchTickerData(t, { includeExtraTF })])
       );
 
       const priceUpdates = Object.fromEntries(entries);
       io.emit('priceUpdate', priceUpdates);
     } catch (e) {
-      console.error('Updater loop error:', e.message);
+      console.error('[marketData] updater error:', e.message);
     }
-  }, 5000);
+  }, intervalMs);
+
+  // small initial emit (empty) so UI wiring is live
+  setTimeout(() => io.emit('priceUpdate', {}), 1000);
 }
 
 module.exports = { startMarketDataUpdater };
+  

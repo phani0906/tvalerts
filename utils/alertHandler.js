@@ -1,76 +1,70 @@
-const fs = require('fs').promises;
+// utils/alertHandler.js
+const fs = require('fs');
 const path = require('path');
 
-const alertsFilePath = path.join(__dirname, '..', 'data', 'alerts.json');
+function safeSave(file, obj){
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[alertHandler] save skipped:', e.message);
+  }
+}
 
-function initAlertHandler(app, io) {
-    app.post('/sendAlert', async (req, res) => {
-        const alert = req.body;
-        if (!alert || !alert.Ticker || !alert.Timeframe || !alert.Alert || !alert.Time) {
-            return res.status(400).send({ error: 'Invalid alert format' });
-        }
+function safeLoad(file){
+  try {
+    if (!fs.existsSync(file)) return [];
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    console.warn('[alertHandler] load failed:', e.message);
+    return [];
+  }
+}
 
-        console.log('Received alert:', alert);
+function computeZone(a){
+  const hint = (a.Alert || a.AI_5m || a.AI_15m || a.AI_1h || '').toString().toLowerCase();
+  if (a.Zone) return a.Zone;
+  if (hint.includes('sell')) return 'red';
+  if (hint.includes('buy'))  return 'green';
+  return 'green';
+}
 
-        let alerts = [];
+function normalizeAlert(a){
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  return {
+    Time: a.Time || `${hh}:${mm}`,
+    Ticker: a.Ticker || a.symbol || a.ticker || 'UNKNOWN',
+    Alert: a.Alert ?? a.alert,
+    Zone: computeZone(a),
+    ...a
+  };
+}
 
-        // Read existing alerts
-        try {
-            const data = await fs.readFile(alertsFilePath, 'utf8');
-            if (data) alerts = JSON.parse(data);
-        } catch (err) {
-            if (err.code !== 'ENOENT') {
-                console.error('Error reading alerts.json:', err);
-            } else {
-                console.log('alerts.json not found, initializing empty array.');
-            }
-            alerts = [];
-        }
+function initAlertHandler(app, io, { dataDir }) {
+  const file = path.join(dataDir, 'alerts.json');
+  let alerts = safeLoad(file);
 
-        const tickerIndex = alerts.findIndex(a => a.Ticker === alert.Ticker);
+  app.get('/alerts', (_req, res) => res.json(alerts));
 
-        const zone = alert.Alert === 'Buy' ? 'green' : 'red';
+  app.post('/sendAlert', (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body) ? req.body : [req.body];
+      const normalized = incoming.map(normalizeAlert);
+      alerts = [...normalized, ...alerts].slice(0, 500);
 
-        if (tickerIndex !== -1) {
-            const row = alerts[tickerIndex];
+      safeSave(file, alerts);       // persist to disk
+      io.emit('alertsUpdate', alerts); // always notify UI
 
-            // Update the correct column
-            if (alert.Timeframe === 'AI_5m') {
-                row.AI_5m = alert.Alert;
-                row.Time = alert.Time;
-                row.Zone = zone;
-            } else if (alert.Timeframe === 'AI_15m') {
-                row.AI_15m = alert.Alert;
-                if (!row.AI_5m) row.Zone = row.Zone || zone;
-            } else if (alert.Timeframe === 'AI_1h') {
-                row.AI_1h = alert.Alert;
-                if (!row.AI_5m) row.Zone = row.Zone || zone;
-            }
-        } else {
-            // Row does not exist
-            const newRow = {
-                Ticker: alert.Ticker,
-                Time: alert.Timeframe === 'AI_5m' ? alert.Time : '',
-                AI_5m: alert.Timeframe === 'AI_5m' ? alert.Alert : '',
-                AI_15m: alert.Timeframe === 'AI_15m' ? alert.Alert : '',
-                AI_1h: alert.Timeframe === 'AI_1h' ? alert.Alert : '',
-                Zone: zone
-            };
-            alerts.push(newRow);
-        }
+      return res.json({ ok: true, added: normalized.length });
+    } catch (e) {
+      console.error('sendAlert error:', e);
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
 
-        // Save alerts async
-        try {
-            await fs.writeFile(alertsFilePath, JSON.stringify(alerts, null, 2));
-        } catch (err) {
-            console.error('Error writing alerts.json:', err);
-        }
-
-        // Emit updated alerts
-        io.emit('alertsUpdate', alerts);
-
-        res.status(200).send({ success: true });
-    });
+  setTimeout(() => io.emit('alertsUpdate', alerts), 300);
 }
 
 module.exports = { initAlertHandler };

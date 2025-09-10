@@ -1,109 +1,144 @@
-// server/tvWebhook.js
+// utils/tvWebhook.js
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
 
-module.exports = (io, opts = {}) => {
-  const express = require('express');
+module.exports = function tvWebhookRouterFactory(io, { tvSecret = '', dataDir }) {
   const router = express.Router();
+  const alertsFilePath = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
 
-  const tvSecret = opts.tvSecret || '';
-  const dataDir = opts.dataDir || path.join(__dirname, '..', 'data');
-  const alertsFilePath = path.join(dataDir, 'alerts.json');
+  // ---------- helpers ----------
+  function ensureDir(p) {
+    try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+  }
 
-  // In-memory dedupe (avoid floods)
-  const recent = new Map(); // key => ts
-
-  function readAlerts() {
+  function safeLoad(file) {
     try {
-      if (!fs.existsSync(alertsFilePath)) return [];
-      const raw = fs.readFileSync(alertsFilePath, 'utf8').trim();
+      if (!fs.existsSync(file)) return [];
+      const raw = fs.readFileSync(file, 'utf8').trim();
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
-      console.error('tvWebhook readAlerts error:', e);
+      console.warn('[tvWebhook] load failed:', e.message);
       return [];
     }
   }
 
-  function writeAlerts(alerts) {
+  function safeSave(file, obj) {
     try {
-      fs.writeFileSync(alertsFilePath, JSON.stringify(alerts, null, 2));
+      ensureDir(file);
+      fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
     } catch (e) {
-      console.error('tvWebhook writeAlerts error:', e);
+      console.warn('[tvWebhook] save failed (non-fatal):', e.message);
     }
   }
 
   function toHHMM(val) {
-    const d = /^\d+$/.test(String(val)) ? new Date(Number(val)) : new Date(val);
-    if (isNaN(d.getTime())) return String(val ?? '');
+    if (val == null || val === '') {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+    // epoch?
+    const s = String(val);
+    const d = /^\d+$/.test(s) ? new Date(Number(s)) : new Date(s);
+    if (isNaN(d.getTime())) return s;
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
   }
 
-  router.post('/tv-webhook', express.json(), (req, res) => {
+  function parseBody(reqBody) {
+    // TradingView sometimes sends { message: "<json string>" }
+    let payload = reqBody;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch {}
+    }
+    if (payload && typeof payload.message === 'string') {
+      try { payload = JSON.parse(payload.message); } catch {}
+    }
+    return payload || {};
+  }
+
+  function normalizeAlert(b) {
+    const Ticker    = String(b.Ticker || b.ticker || '').toUpperCase();
+    const Timeframe = String(b.Timeframe || b.timeframe || '');
+    const Alert     = /sell/i.test(String(b.Alert || b.alert)) ? 'Sell' : 'Buy';
+    const Time      = toHHMM(b.Time || b.time || b.timenow || Date.now());
+    const Zone      = Alert === 'Buy' ? 'green' : 'red';
+    return { Ticker, Timeframe, Alert, Time, Zone };
+  }
+
+  // In-memory dedupe (avoid floods)
+  const recent = new Map(); // key => ts
+
+  // ---------- route ----------
+  router.post('/tv-webhook', express.json({ limit: '1mb' }), (req, res) => {
     try {
-      // 1) shared secret
-      if (!tvSecret || req.query.key !== tvSecret) {
-        return res.sendStatus(403);
+      // 1) shared secret (required if tvSecret is set)
+      if (tvSecret && req.query.key !== tvSecret) {
+        return res.status(403).json({ ok: false, error: 'Forbidden: bad key' });
       }
 
-      const body = req.body || {};
-      // TV sends exactly what you put in "Message" — we accept both camel and lower keys
-      const alert = {
-        Ticker:     String(body.Ticker || body.ticker || '').toUpperCase(),
-        Timeframe:  String(body.Timeframe || body.timeframe || ''),
-        Alert:      (body.Alert || body.alert) === 'Sell' ? 'Sell' : 'Buy',
-        Time:       toHHMM(body.Time || body.time || body.timenow || Date.now()),
-      };
+      // 2) parse & normalize
+      const body  = parseBody(req.body);
+      const alert = normalizeAlert(body);
 
       if (!alert.Ticker || !alert.Timeframe || !alert.Alert || !alert.Time) {
-        console.warn('TV webhook: missing fields', body);
-        return res.status(400).send('Bad alert payload');
+        console.warn('[tvWebhook] missing fields in payload:', body);
+        return res.status(400).json({ ok: false, error: 'Bad alert payload' });
       }
 
-      alert.Zone = alert.Alert === 'Buy' ? 'green' : 'red';
-
-      // 2) dedupe: same Ticker/TF/Alert within 5s
+      // 3) dedupe: same Ticker/TF/Alert within 5s
       const key = `${alert.Ticker}|${alert.Timeframe}|${alert.Alert}`;
       const now = Date.now();
       const last = recent.get(key) || 0;
-      if (now - last < 5000) return res.sendStatus(200);
+      if (now - last < 5000) return res.json({ ok: true, deduped: true });
       recent.set(key, now);
 
-      // 3) merge into alerts.json like /sendAlert does
-      const alerts = readAlerts();
-      const i = alerts.findIndex(a => a.Ticker === alert.Ticker);
+      // 4) merge into alerts list (latest-first, cap 500)
+      const alerts = safeLoad(alertsFilePath);
 
+      // row per Ticker (you can change to per (Ticker,TF) if you prefer)
+      let i = alerts.findIndex(a => a.Ticker === alert.Ticker);
       if (i !== -1) {
         const row = alerts[i];
         if (alert.Timeframe === 'AI_5m') {
           row.AI_5m = alert.Alert;
-          row.Time = alert.Time;
-          row.Zone = alert.Zone;
+          row.Time  = alert.Time;        // show latest 5m time
+          row.Zone  = alert.Zone;        // drive zone by 5m
         } else if (alert.Timeframe === 'AI_15m') {
           row.AI_15m = alert.Alert;
           if (!row.AI_5m) row.Zone = row.Zone || alert.Zone;
         } else if (alert.Timeframe === 'AI_1h') {
           row.AI_1h = alert.Alert;
           if (!row.AI_5m) row.Zone = row.Zone || alert.Zone;
+        } else {
+          // unknown tf: store generically
+          row[alert.Timeframe] = alert.Alert;
         }
+        // move updated row to top
+        alerts.splice(i, 1);
+        alerts.unshift(row);
       } else {
-        alerts.push({
-          Ticker: alert.Ticker,
-          Time: alert.Timeframe === 'AI_5m' ? alert.Time : '',
-          AI_5m: alert.Timeframe === 'AI_5m' ? alert.Alert : '',
-          AI_15m: alert.Timeframe === 'AI_15m' ? alert.Alert : '',
-          AI_1h: alert.Timeframe === 'AI_1h' ? alert.Alert : '',
-          Zone: alert.Zone
+        alerts.unshift({
+          Ticker:  alert.Ticker,
+          Time:    alert.Timeframe === 'AI_5m' ? alert.Time : '',
+          AI_5m:   alert.Timeframe === 'AI_5m'  ? alert.Alert : '',
+          AI_15m:  alert.Timeframe === 'AI_15m' ? alert.Alert : '',
+          AI_1h:   alert.Timeframe === 'AI_1h'  ? alert.Alert : '',
+          Zone:    alert.Zone
         });
       }
 
-      writeAlerts(alerts);
+      while (alerts.length > 500) alerts.pop();
+
+      // 5) persist + notify UI
+      safeSave(alertsFilePath, alerts);
       io.emit('alertsUpdate', alerts);
-      res.sendStatus(200);
+
+      return res.json({ ok: true, accepted: 1 });
     } catch (e) {
-      console.error('tv-webhook error:', e);
-      res.sendStatus(500);
+      console.error('[tvWebhook] error:', e);
+      return res.status(500).json({ ok: false, error: 'Internal error' });
     }
   });
 

@@ -59,7 +59,10 @@ function renderTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  alerts.forEach(a => {
+  // ✅ Only keep rows that have a 5m alert
+  const filtered = alerts.filter(a => a.AI_5m);
+
+  filtered.forEach(a => {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
@@ -78,7 +81,7 @@ function renderTable() {
     td.textContent = fmt2(toNum(p.Price));
     row.appendChild(td);
 
-    // 3 Alert (AI_5m used as the Alert column)
+    // 3 Alert (AI_5m only)
     td = document.createElement('td');
     td.textContent = a.AI_5m || '';
     if (td.textContent === 'Buy') td.classList.add('signal-buy');

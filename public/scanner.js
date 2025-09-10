@@ -10,7 +10,7 @@ let priceData = {};
 const TOLERANCE = {
   ma20_5m: 0.50,   // highlight if |Price - MA20(5m)| <= $0.50
   vwap_5m: 0.50,   // highlight if |Price - VWAP(5m)| <= $0.50
-  daymid:  1.00    // highlight if |Price - DayMid| <= $1.00
+  daymid: 1.00    // highlight if |Price - DayMid| <= $1.00
 };
 
 /* =========================
@@ -84,17 +84,19 @@ function renderTable() {
     td.textContent = a.Ticker || '';
     row.appendChild(td);
 
-    // 2 Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
     // 3 Alert (5m only)
     td = document.createElement('td');
     td.textContent = a.AI_5m || '';
     if (td.textContent === 'Buy') td.classList.add('signal-buy');
     else if (td.textContent === 'Sell') td.classList.add('signal-sell');
     row.appendChild(td);
+
+    // 2 Price
+    td = document.createElement('td');
+    td.textContent = fmt2(toNum(p.Price));
+    row.appendChild(td);
+
+
 
     // 4 MA20(5m) vs Price — near-zero blink if within tolerance
     td = document.createElement('td');

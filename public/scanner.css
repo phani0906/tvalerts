@@ -1,214 +1,145 @@
-/* =========================
-   Global / Page
-   ========================= */
-   :root{
-    --bg: #0b0b0b;
-    --panel: #111;
-    --panel-2: #171717;
-    --grid: #2a2a2a;
-    --grid-soft: #1d1d1d;
-  
-    --text: #f4c542;        /* amber/gold for headings & labels */
-    --text-dim: #caa53a;
-    --white-dim: #d7d7d7;
-  
-    --green: #00ff66;
-    --green-soft: rgba(0,255,102,0.5);
-    --red: #ff4545;
-    --red-soft: rgba(255,69,69,0.55);
-    --orange: #ffa500;
-  
-    --blink-gold: #ffd166;
-    --blink-gold-ghost: rgba(255,209,102,0.25);
-  }
-  
-  * { box-sizing: border-box; }
-  
-  html, body {
-    height: 100%;
-    background: var(--bg);
-  }
-  
-  body {
+/* ===== Body and Heading ===== */
+body {
+    background-color: #000;
+    color: #FFD700; /* gold/yellow text */
+    font-family: Arial, sans-serif;
+    font-size: 18px;
     margin: 10px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-    color: var(--white-dim);
-    font-size: 16px; /* slightly tighter than 18px for dense rows */
-    letter-spacing: 0.2px;
   
-    /* background image (optional) */
-    background-image: url('images/backgroundjpg.jpg');
+    /* Background Image */
+    background-image: url('images/backgroundjpg.jpg'); /* path relative to public folder */
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     background-attachment: fixed;
   }
   
   h2 {
-    margin: 6px 0 12px;
+    color: #FFA500;
     text-align: center;
-    color: var(--orange);
-    font-weight: 800;
-    text-shadow: 0 0 8px rgba(255,165,0,0.35);
+    margin-bottom: 20px;
   }
   
-  /* =========================
-     Zone Containers
-     ========================= */
+  /* ===== Table Container ===== */
   .table-container {
-    margin: 14px 6px 28px;
-    padding: 8px;
-    border-radius: 12px;
-    background: rgba(0,0,0,0.55);
+    margin-bottom: 30px;
+    padding: 10px;
+    border-radius: 10px;
   }
   
+  /* ===== Table Titles ===== */
   .table-title {
-    margin: 0 0 8px;
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    font-weight: bold;
   }
   
-  /* Green Zone frame */
-  .buy-table {
-    border: 3px solid var(--green);
-    border-radius: 14px;
-    box-shadow: 0 0 16px rgba(0,255,0,0.45), inset 0 0 12px rgba(0,255,0,0.15);
-    padding: 10px;
+  .table-title::before {
+    margin-right: 8px;
   }
   
-  /* Red Zone frame */
-  .sell-table {
-    border: 3px solid var(--red);
-    border-radius: 14px;
-    box-shadow: 0 0 16px rgba(255,69,0,0.45), inset 0 0 12px rgba(255,69,0,0.12);
-    padding: 10px;
-  }
-  
+  /* Buy Table Title */
   .buy-title {
-    color: var(--green);
-    text-shadow: 0 0 8px rgba(0,255,0,0.55);
+    color: #00FF00;
+    text-shadow: 0 0 5px #00FF00;
   }
   
+  /* Sell Table Title */
   .sell-title {
-    color: var(--red);
-    text-shadow: 0 0 8px rgba(255,69,0,0.55);
+    color: #FF4500;
+    text-shadow: 0 0 5px #FF4500;
   }
   
-  /* =========================
-     Table
-     ========================= */
+  /* ===== Table Styling ===== */
   table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    overflow: hidden;
     border-radius: 10px;
+    overflow: hidden;
   }
   
   th, td {
-    border: 1px solid var(--grid);
-    padding: 6px 8px;          /* compact rows like the screenshot */
+    border: 1px solid #444;
+    padding: 8px;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    background-color: rgba(17, 17, 17, 0.8);
+    font-weight: bold;
   }
   
-  /* Headers: dark slab w/ amber text */
+  /* Slightly lighter even rows */
+  tr:nth-child(even) td {
+    background-color: rgba(26, 26, 26, 0.8);
+  }
+  
   th {
-    background: #1a1a1a;
-    color: var(--text);
-    font-weight: 800;
-    font-size: 13.5px;
-    letter-spacing: 0.3px;
-    border-top: 1px solid var(--grid-soft);
-    border-bottom: 1px solid var(--grid-soft);
+    background-color: rgba(34, 34, 34, 0.9);
+    color: #FFA500;
   }
   
-  /* Data rows: subtle zebra */
-  tbody tr:nth-child(odd) td { background: rgba(20,20,20,0.85); }
-  tbody tr:nth-child(even) td { background: rgba(14,14,14,0.85); }
-  
-  /* Slight hover to aid scanning */
-  tbody tr:hover td {
-    background: #1b1b1b;
+  /* ===== Zone Containers ===== */
+  .buy-table {
+    border: 3px solid #00FF00;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
+    background: rgba(0, 0, 0, 0.6);
   }
   
-  /* Ticker + numbers pop like screenshot */
-  td:nth-child(2) {           /* Ticker */
-    color: #ffdd55;
-    font-weight: 800;
-    letter-spacing: 0.4px;
-  }
-  td, th {
-    font-variant-numeric: tabular-nums; /* align numbers nicely */
+  .sell-table {
+    border: 3px solid #FF4500;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 0 15px rgba(255, 69, 0, 0.6);
+    background: rgba(0, 0, 0, 0.6);
   }
   
-  /* Price column: brighter */
-  td:nth-child(3) {
-    color: #f9e27a;
-    font-weight: 700;
+  /* ===== Signal Colors ===== */
+  .signal-buy {
+    color: #00FF00;
+  }
+  .signal-sell {
+    color: #FF4500;
   }
   
-  /* AI signal colors */
-  td {
-    font-weight: 700;
+  /* ===== Diff Coloring ===== */
+  .diff-up {
+    color: #32CD32; /* lime green */
+    font-weight: 600;
   }
-  td.signal-buy { color: #18e36a; }
-  td.signal-sell { color: #ff5c5c; }
+  .diff-down {
+    color: #FF6347; /* tomato red */
+    font-weight: 600;
+  }
   
-  /* Diff coloring in metric cells (we insert red/green spans from JS already) */
-  .diff-up   { color: #19d36b !important; }
-  .diff-down { color: #ff5151 !important; }
-  
-  /* =========================
-     Near-zero highlight (border blink only)
-     ========================= */
+  /* ===== Near-zero Blink (gold border only) ===== */
   td.near-zero {
     position: relative;
-    border: 1px solid transparent; /* keep grid but allow overlay ring */
+    border: 2px solid gold;
+    border-radius: 6px;
+    box-sizing: border-box;
   }
   
-  /* 4-sided gold ring (static) */
-  td.near-zero::after {
-    content: "";
-    position: absolute;
-    inset: -1px;             /* cover the cell borders on all 4 sides */
-    border-radius: 4px;
-    border: 2px solid var(--blink-gold);
-    pointer-events: none;
-    box-shadow:
-      0 0 0 2px rgba(0,0,0,0.35) inset,
-      0 0 10px var(--blink-gold-ghost);
+  @keyframes goldBlink {
+    0%   { border-color: gold; }
+    50%  { border-color: transparent; }
+    100% { border-color: gold; }
   }
   
-  /* Blink animation: only the border glow, not the background */
-  @keyframes borderPulse {
-    0%   { box-shadow: 0 0 8px var(--blink-gold-ghost), inset 0 0 0 2px rgba(0,0,0,0.35); }
-    50%  { box-shadow: 0 0 18px var(--blink-gold), inset 0 0 0 2px rgba(0,0,0,0.35); }
-    100% { box-shadow: 0 0 8px var(--blink-gold-ghost), inset 0 0 0 2px rgba(0,0,0,0.35); }
+  td.near-zero.blink {
+    animation: goldBlink 2.4s ease-in-out infinite;
   }
   
-  td.near-zero.blink::after {
-    animation: borderPulse 2.4s ease-in-out infinite; /* slow, readable pulse */
-  }
-  
-  /* Pause on hover for readability */
-  td.near-zero.blink:hover::after {
+  td.near-zero.blink:hover {
     animation-play-state: paused;
   }
   
-  /* Respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    td.near-zero.blink::after { animation: none !important; }
+    td.near-zero.blink {
+      animation: none !important;
+    }
   }
-  
-  /* =========================
-     Utility alignment (optional)
-     ========================= */
-  .align-left  { text-align: left;  }
-  .align-right { text-align: right; }
   

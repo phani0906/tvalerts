@@ -318,5 +318,437 @@
     "Zone": "green",
     "Timeframe": "AI_1h",
     "ReceivedAt": "2025-09-11T06:46:39.177Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "ANET",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:04.630Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "ANET",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:09.615Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "MU",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:24.613Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "AFRM",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:34.618Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "NVDA",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:39.621Z"
+  },
+  {
+    "Time": "02:06",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:06:44.625Z"
+  },
+  {
+    "Time": "02:07",
+    "Ticker": "PLTR",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:07:09.630Z"
+  },
+  {
+    "Time": "02:07",
+    "Ticker": "ANET",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:07:24.636Z"
+  },
+  {
+    "Time": "02:07",
+    "Ticker": "MP",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:07:39.642Z"
+  },
+  {
+    "Time": "02:07",
+    "Ticker": "MU",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:07:54.648Z"
+  },
+  {
+    "Time": "02:08",
+    "Ticker": "AMD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:08:04.651Z"
+  },
+  {
+    "Time": "02:08",
+    "Ticker": "FIVE",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:08:29.658Z"
+  },
+  {
+    "Time": "02:08",
+    "Ticker": "MRVL",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:08:39.662Z"
+  },
+  {
+    "Time": "02:08",
+    "Ticker": "HOOD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:08:44.664Z"
+  },
+  {
+    "Time": "02:09",
+    "Ticker": "MU",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:09:04.669Z"
+  },
+  {
+    "Time": "02:09",
+    "Ticker": "NVDA",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:09:19.675Z"
+  },
+  {
+    "Time": "02:09",
+    "Ticker": "PLTR",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:09:39.683Z"
+  },
+  {
+    "Time": "02:10",
+    "Ticker": "AMD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:10:09.692Z"
+  },
+  {
+    "Time": "02:10",
+    "Ticker": "MP",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:10:49.708Z"
+  },
+  {
+    "Time": "02:11",
+    "Ticker": "HIMS",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:11:14.719Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "ANET",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:04.740Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "MRVL",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:24.747Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "HOOD",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:29.748Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "HOOD",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:34.750Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "MRVL",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:44.752Z"
+  },
+  {
+    "Time": "02:12",
+    "Ticker": "FIVE",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:12:59.758Z"
+  },
+  {
+    "Time": "02:13",
+    "Ticker": "PLTR",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:13:09.760Z"
+  },
+  {
+    "Time": "02:13",
+    "Ticker": "AMD",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:13:14.761Z"
+  },
+  {
+    "Time": "02:13",
+    "Ticker": "MRVL",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:13:24.764Z"
+  },
+  {
+    "Time": "02:13",
+    "Ticker": "AMAT",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:13:29.763Z"
+  },
+  {
+    "Time": "02:13",
+    "Ticker": "PLTR",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:13:59.771Z"
+  },
+  {
+    "Time": "02:15",
+    "Ticker": "AMD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:15:04.799Z"
+  },
+  {
+    "Time": "02:15",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:15:14.803Z"
+  },
+  {
+    "Time": "02:15",
+    "Ticker": "AFRM",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:15:24.806Z"
+  },
+  {
+    "Time": "02:15",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:15:49.835Z"
+  },
+  {
+    "Time": "02:16",
+    "Ticker": "ANET",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:16:09.845Z"
+  },
+  {
+    "Time": "02:16",
+    "Ticker": "NVDA",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:16:49.861Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "NVDA",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:04.870Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "HIMS",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:14.876Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "FIVE",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:24.881Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "NVDA",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:39.889Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "HOOD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:44.893Z"
+  },
+  {
+    "Time": "02:17",
+    "Ticker": "AFRM",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:17:49.896Z"
+  },
+  {
+    "Time": "02:18",
+    "Ticker": "AMAT",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:18:04.899Z"
+  },
+  {
+    "Time": "02:18",
+    "Ticker": "AMAT",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:18:34.908Z"
+  },
+  {
+    "Time": "02:18",
+    "Ticker": "AFRM",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:18:39.910Z"
+  },
+  {
+    "Time": "02:19",
+    "Ticker": "AMD",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:19:29.927Z"
+  },
+  {
+    "Time": "02:19",
+    "Ticker": "HIMS",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:19:59.938Z"
+  },
+  {
+    "Time": "02:20",
+    "Ticker": "AMAT",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:20:19.944Z"
+  },
+  {
+    "Time": "02:20",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:20:24.946Z"
+  },
+  {
+    "Time": "02:20",
+    "Ticker": "AMAT",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:20:44.954Z"
+  },
+  {
+    "Time": "02:20",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:20:59.960Z"
+  },
+  {
+    "Time": "02:21",
+    "Ticker": "AMAT",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:21:19.967Z"
+  },
+  {
+    "Time": "02:21",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:21:39.978Z"
   }
 ]

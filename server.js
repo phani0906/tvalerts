@@ -9,37 +9,29 @@ const { Server } = require('socket.io');
 
 // ---------- Crash guards ----------
 process.on('uncaughtException', (e) => {
-  console.error('[uncaughtException]', e && e.stack || e);
+  console.error('[uncaughtException]', e?.stack || e);
 });
 process.on('unhandledRejection', (e) => {
-  console.error('[unhandledRejection]', e && e.stack || e);
+  console.error('[unhandledRejection]', e?.stack || e);
 });
 
 // ---------- Helpers ----------
 const { initAlertHandler } = require('./utils/alertHandler');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 
-// Market data is optional at boot so the app still serves even if deps are missing
 let startMarketDataUpdater = null;
-let marketDataModule = null;
 try {
-  marketDataModule = require('./utils/marketData');
-  startMarketDataUpdater = marketDataModule.startMarketDataUpdater;
+  ({ startMarketDataUpdater } = require('./utils/marketData'));
   console.log('[boot] marketData module loaded');
 } catch (e) {
   console.warn('[boot] marketData module NOT loaded:', e.message);
 }
 
-// ---------- App + Server + IO ----------
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
-
 // ---------- Config ----------
-const PORT = process.env.PORT || 2709;
+const PORT      = process.env.PORT || 2709;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data'); // e.g. /data on Render
-const TV_SECRET = process.env.TV_SECRET || ''; // optional
+const DATA_DIR   = process.env.DATA_DIR || path.join(__dirname, 'data'); // e.g. /data on Render disk
+const TV_SECRET  = process.env.TV_SECRET || ''; // optional but recommended
 
 // Ensure DATA_DIR exists
 try {
@@ -49,18 +41,24 @@ try {
   console.warn('[boot] could not ensure DATA_DIR:', DATA_DIR, e.message);
 }
 
+// ---------- App + Server + IO ----------
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] }
+});
+
 // ---------- Middleware ----------
 app.use(express.json({ limit: '1mb' }));
-app.use(express.text({ type: '*/*', limit: '1mb' })); // handles text/plain from TV
+// TV can post text/plain; keep this to accept both JSON and text
+app.use(express.text({ type: '*/*', limit: '1mb' }));
 
 // ---------- Static ----------
 app.use(express.static(PUBLIC_DIR));
 app.get('/', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'scanner.html')));
 
 // ---------- Health ----------
-app.get('/health', (_req, res) =>
-  res.status(200).send({ ok: true, time: new Date().toISOString() })
-);
+app.get('/health', (_req, res) => res.status(200).send({ ok: true, time: new Date().toISOString() }));
 
 // ---------- Socket.IO logging ----------
 io.on('connection', socket => {
@@ -68,62 +66,43 @@ io.on('connection', socket => {
   socket.on('disconnect', () => console.log('[socket] disconnected:', socket.id));
 });
 
-// ---------- Alerts endpoint (/sendAlert) ----------
+// ---------- Alerts endpoints (read-only JSON for each TF) ----------
+const f5  = path.join(DATA_DIR, 'alerts_5m.json');
+const f15 = path.join(DATA_DIR, 'alerts_15m.json');
+const f1h = path.join(DATA_DIR, 'alerts_1h.json');
+
+// Serve the files directly so the browser can fetch them on load/refresh
+app.get('/alerts/5m',  (_req, res) => res.sendFile(f5,  { headers: { 'Cache-Control': 'no-store' } }));
+app.get('/alerts/15m', (_req, res) => res.sendFile(f15, { headers: { 'Cache-Control': 'no-store' } }));
+app.get('/alerts/1h',  (_req, res) => res.sendFile(f1h, { headers: { 'Cache-Control': 'no-store' } }));
+
+// ---------- Alert ingestion endpoints ----------
+// 1) Internal simple POST used by your sendTestAlerts.js (writes + emits)
 initAlertHandler(app, io, { dataDir: DATA_DIR });
 
-// ---------- TradingView webhook (/tv-webhook?key=TV_SECRET) ----------
+// 2) TradingView webhook: POST /tv-webhook?key=TV_SECRET (if set)
+//    This router will write to the per-timeframe files and emit:
+//    - alertsUpdate:AI_5m
+//    - alertsUpdate:AI_15m
+//    - alertsUpdate:AI_1h
 app.use(tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR }));
 
-// ---------- Debug endpoints (safe to keep in prod) ----------
-app.get('/debug/tickers', (req, res) => {
-  try {
-    const load = name => {
-      const p = path.join(DATA_DIR, name);
-      if (!fs.existsSync(p)) return [];
-      const raw = fs.readFileSync(p, 'utf8').trim();
-      return raw ? JSON.parse(raw) : [];
-    };
-    const a5  = load('alerts_5m.json');
-    const a15 = load('alerts_15m.json');
-    const a1h = load('alerts_1h.json');
-    const tickers = [...new Set([...a5, ...a15, ...a1h].map(a => a.Ticker).filter(Boolean))];
-
-    res.json({
-      dataDir: DATA_DIR,
-      counts: { '5m': a5.length, '15m': a15.length, '1h': a1h.length },
-      tickers
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Single-ticker on-demand fetch to verify Yahoo access from Render
-app.get('/debug/fetch', async (req, res) => {
-  try {
-    if (!marketDataModule?.fetchTickerData) {
-      return res.status(500).json({ error: 'marketData not loaded' });
-    }
-    const t = String(req.query.t || 'AAPL').toUpperCase();
-    const data = await marketDataModule.fetchTickerData(t);
-    res.json({ ticker: t, data });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ---------- Price updater ----------
+// ---------- Market data updater (emits priceUpdate) ----------
 if (startMarketDataUpdater && process.env.DISABLE_MARKET !== '1') {
   console.log('[boot] starting market data updater');
-  startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000 });
+  // includeExtraTF: true -> fetch MA/VWAP for 15m & 1h also
+  startMarketDataUpdater(io, { dataDir: DATA_DIR, intervalMs: 5000, includeExtraTF: true });
 } else {
   console.warn('[boot] market data updater DISABLED (missing module or DISABLE_MARKET=1)');
 }
 
-// ---------- Start server ----------
+// ---------- Start ----------
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`DATA_DIR: ${DATA_DIR}`);
-  if (TV_SECRET) console.log('TradingView webhook: POST /tv-webhook?key=***');
-  else console.warn('TV_SECRET not set — /tv-webhook is unsecured (ok for local).');
+  if (TV_SECRET) {
+    console.log('TradingView webhook enabled: POST /tv-webhook?key=***');
+  } else {
+    console.warn('TV_SECRET not set — /tv-webhook is unsecured (OK for local, not for prod).');
+  }
 });

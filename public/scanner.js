@@ -33,6 +33,13 @@ const toNum = (v) =>
 const fmt2 = (v) =>
   (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
 
+function appendWithFlash(tbody, row) {
+  tbody.appendChild(row);
+  row.classList.add('new-row');
+  setTimeout(() => row.classList.remove('new-row'), 1500);
+}
+
+
 function formatTimeToCST(isoString) {
   if (!isoString) return '';
   try {
@@ -168,7 +175,8 @@ function renderFiveMinTable() {
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    (isBuy ? buyTbody : sellTbody).appendChild(row);
+    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+
   });
 }
 
@@ -221,7 +229,8 @@ function renderFifteenMinTable() {
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,     p.Price, TOLERANCE.daymid_15m); row.appendChild(td);
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    (isBuy ? buyTbody : sellTbody).appendChild(row);
+    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+
   });
 }
 
@@ -275,7 +284,8 @@ function renderOneHrTable() {
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,   p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    (isBuy ? buyTbody : sellTbody).appendChild(row);
+    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+
   });
 }
 

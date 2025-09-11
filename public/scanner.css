@@ -106,3 +106,37 @@ td.near-zero.blink:hover { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
   td.near-zero.blink { animation: none !important; }
 }
+
+/* (2) Row highlight on update */
+@keyframes rowFlash {
+  from { background-color: #333; }
+  to   { background-color: transparent; }
+}
+tr.new-row { animation: rowFlash 1.5s ease-out; }
+
+/* (3) Ticker emphasis (2nd column is Ticker in every table) */
+td:nth-child(2) {
+  font-size: 1.2em;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* (4) Compact diff styling next to MA/VWAP/DayMid */
+.diff-up, .diff-down {
+  font-size: 0.9em;
+  font-style: italic;
+}
+
+/* (5) Stronger zone title glow */
+.buy-title  { text-shadow: 0 0 10px #00FF00; }  /* stronger than current */
+.sell-title { text-shadow: 0 0 10px #FF4500; }
+
+/* (6) Hover highlight */
+tr:hover td {
+  background-color: rgba(255, 215, 0, 0.12); /* subtle gold tint */
+}
+
+/* (7) Rounded corners for row edges */
+td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+

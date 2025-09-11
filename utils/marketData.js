@@ -156,23 +156,57 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
+/**
+ * Previous Day Midpoint = (yesterday's daily high + low) / 2
+ * Uses daily chart so we get gmtoffset and complete sessions.
+ */
+async function fetchPrevDayMid(ticker) {
+  try {
+    const res = await yahooFinance.chart(ticker, {
+      interval: '1d',
+      range: '1mo',
+      includePrePost: false
+    });
+    const quotes = Array.isArray(res?.quotes) ? res.quotes : [];
+    const gmtoffsetSec = Number(res?.meta?.gmtoffset) || 0;
+    if (quotes.length === 0) return 'N/A';
+
+    // Build today key (exchange-local)
+    const now = new Date();
+    const todayKey = dayKeyWithOffset(now, gmtoffsetSec);
+
+    // Find most recent completed day (not today's partial)
+    // Walk from the end until we find a bar whose key != todayKey
+    let prev = null;
+    for (let i = quotes.length - 1; i >= 0; i--) {
+      const q = quotes[i];
+      let d = q?.date instanceof Date ? q.date : null;
+      if (!d && typeof q?.timestamp === 'number') d = new Date(q.timestamp * 1000);
+      const key = d ? dayKeyWithOffset(d, gmtoffsetSec) : null;
+      if (key && key !== todayKey) { prev = q; break; }
+    }
+    // Fallback: if all are not today (e.g. after-hours), just take the last
+    if (!prev) prev = quotes[quotes.length - 1];
+
+    const h = num(prev?.high), l = num(prev?.low);
+    if (!isNum(h) || !isNum(l)) return 'N/A';
+
+    return Number(((h + l) / 2).toFixed(2));
+  } catch (err) {
+    console.error(`PrevDayMid error ${ticker}:`, err.message);
+    return 'Error';
+  }
+}
+
 // -------------------- top-level fetchers --------------------
 async function fetchQuoteSummary(ticker) {
   try {
-    const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price', 'summaryDetail'] });
-
+    const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
     const Price = quote.price?.regularMarketPrice ?? 'N/A';
-
-    const dayLow = num(quote.summaryDetail?.dayLow);
-    const dayHigh = num(quote.summaryDetail?.dayHigh);
-    const DayMid = (isNum(dayLow) && isNum(dayHigh))
-      ? Number(((dayLow + dayHigh) / 2).toFixed(2))
-      : 'N/A';
-
-    return { Price, DayMid };
+    return { Price };
   } catch (err) {
     console.error(`quoteSummary error ${ticker}:`, err.message);
-    return { Price: 'Error', DayMid: 'Error' };
+    return { Price: 'Error' };
   }
 }
 
@@ -181,29 +215,31 @@ async function fetchTickerData(ticker, opts = {}) {
 
   if (!includeExtraTF) {
     // minimal set for your current table
-    const [summary, ma5, vw5] = await Promise.all([
+    const [summary, prevMid, ma5, vw5] = await Promise.all([
       fetchQuoteSummary(ticker),
+      fetchPrevDayMid(ticker),
       fetchMA20(ticker, '5m'),
       fetchVWAP(ticker, '5m'),
     ]);
     return {
       Price: summary.Price,
-      DayMid: summary.DayMid,
+      DayMid: prevMid,      // <-- now "previous day mid"
       MA20_5m: ma5,
       VWAP_5m: vw5,
     };
   }
 
   // full set (if/when you bring the extra columns back)
-  const [summary, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
+  const [summary, prevMid, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
     fetchQuoteSummary(ticker),
+    fetchPrevDayMid(ticker),
     fetchMA20(ticker, '5m'),  fetchVWAP(ticker, '5m'),
     fetchMA20(ticker, '15m'), fetchVWAP(ticker, '15m'),
     fetchMA20(ticker, '1h'),  fetchVWAP(ticker, '1h'),
   ]);
   return {
     Price: summary.Price,
-    DayMid: summary.DayMid,
+    DayMid: prevMid,        // <-- previous day mid
     MA20_5m: ma5,  VWAP_5m: vw5,
     MA20_15m: ma15, VWAP_15m: vw15,
     MA20_1h: mah,  VWAP_1h: vwh,
@@ -261,4 +297,3 @@ function startMarketDataUpdater(io, opts = {}) {
 }
 
 module.exports = { startMarketDataUpdater };
-  

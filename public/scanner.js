@@ -122,10 +122,17 @@ function renderTable() {
 /* =========================
    Socket listeners
    ========================= */
-socket.on('alertsUpdate', data => {
-  alerts = data || [];
-  renderTable();
+// Only handle AI_5m stream
+socket.on('alertsUpdate:AI_5m', rows => {
+  console.log('[client] received 5m alerts:', rows);
+  renderFiveMinTable(rows);   // you define this
 });
+
+// Optional: still listen to all, if you want
+// socket.on('alertsUpdate', payload => {
+//   console.log('generic alertsUpdate', payload);
+// });
+
 
 socket.on('priceUpdate', data => {
   priceData = data || {};

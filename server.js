@@ -74,9 +74,28 @@ app.get('/', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'scanner.html')))
 app.get('/health', (_req, res) => res.status(200).send({ ok: true, time: new Date().toISOString() }));
 
 // ---------- Snapshot API (debug / page bootstrap) ----------
-app.get('/alerts', (_req, res) => {
-  res.json(readAlertsSnapshot());
+// Add/replace your /alerts route in server.js
+app.get('/alerts', (req, res) => {
+  try {
+    const tf = (req.query.tf || 'AI_5m').toUpperCase();
+    const tfNorm = tf === 'AI_5M' ? 'AI_5m' : tf === 'AI_15M' ? 'AI_15m' : tf === 'AI_1H' ? 'AI_1h' : tf;
+    const fileMap = {
+      'AI_5m':  path.join(DATA_DIR, 'alerts_5m.json'),
+      'AI_15m': path.join(DATA_DIR, 'alerts_15m.json'),
+      'AI_1h':  path.join(DATA_DIR, 'alerts_1h.json'),
+    };
+    const file = fileMap[tfNorm] || path.join(DATA_DIR, 'alerts_other.json');
+
+    if (!fs.existsSync(file)) return res.json([]);
+    const raw = fs.readFileSync(file, 'utf8').trim();
+    const data = raw ? JSON.parse(raw) : [];
+    res.json(data);
+  } catch (e) {
+    console.error('Error reading alerts:', e);
+    res.status(500).json({ error: 'Failed to read alerts' });
+  }
 });
+
 
 // ---------- Socket.IO ----------
 io.on('connection', (socket) => {

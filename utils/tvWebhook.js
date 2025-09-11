@@ -1,144 +1,99 @@
 // utils/tvWebhook.js
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
+const fs = require('fs').promises;
+const path = require('path');
+
+function normTicker(t) {
+  if (!t) return '';
+  return String(t).toUpperCase().split(':').pop().trim();
+}
+function normAlert(a) {
+  const v = String(a || '').trim().toLowerCase();
+  if (v === 'sell') return 'Sell';
+  if (v === 'buy') return 'Buy';
+  // Accept strategy.order.action like "buy"/"sell"
+  return v.includes('sell') ? 'Sell' : 'Buy';
+}
+function normTF(tf) {
+  const v = String(tf || '').trim().toUpperCase();
+  if (v === 'AI_5M') return 'AI_5m';
+  if (v === 'AI_15M') return 'AI_15m';
+  if (v === 'AI_1H' || v === 'AI_60M') return 'AI_1h';
+  return v; // unknown stays as-is
+}
+function fileForTF(baseDir, tf) {
+  switch (tf) {
+    case 'AI_5m':  return path.join(baseDir, 'alerts_5m.json');
+    case 'AI_15m': return path.join(baseDir, 'alerts_15m.json');
+    case 'AI_1h':  return path.join(baseDir, 'alerts_1h.json');
+    default:       return path.join(baseDir, 'alerts_other.json');
+  }
+}
+async function load(file) {
+  try {
+    const raw = await fs.readFile(file, 'utf8');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('[tv-webhook] read error:', e);
+    return [];
+  }
+}
+async function save(file, arr) {
+  try {
+    await fs.writeFile(file, JSON.stringify(arr, null, 2));
+  } catch (e) {
+    console.error('[tv-webhook] write error:', e);
+  }
+}
 
 module.exports = function tvWebhookRouterFactory(io, { tvSecret = '', dataDir }) {
   const router = express.Router();
-  const alertsFilePath = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
 
-  // ---------- helpers ----------
-  function ensureDir(p) {
-    try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
-  }
-
-  function safeLoad(file) {
+  router.post('/tv-webhook', async (req, res) => {
     try {
-      if (!fs.existsSync(file)) return [];
-      const raw = fs.readFileSync(file, 'utf8').trim();
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      console.warn('[tvWebhook] load failed:', e.message);
-      return [];
-    }
-  }
-
-  function safeSave(file, obj) {
-    try {
-      ensureDir(file);
-      fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
-    } catch (e) {
-      console.warn('[tvWebhook] save failed (non-fatal):', e.message);
-    }
-  }
-
-  function toHHMM(val) {
-    if (val == null || val === '') {
-      const d = new Date();
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    }
-    // epoch?
-    const s = String(val);
-    const d = /^\d+$/.test(s) ? new Date(Number(s)) : new Date(s);
-    if (isNaN(d.getTime())) return s;
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-
-  function parseBody(reqBody) {
-    // TradingView sometimes sends { message: "<json string>" }
-    let payload = reqBody;
-    if (typeof payload === 'string') {
-      try { payload = JSON.parse(payload); } catch {}
-    }
-    if (payload && typeof payload.message === 'string') {
-      try { payload = JSON.parse(payload.message); } catch {}
-    }
-    return payload || {};
-  }
-
-  function normalizeAlert(b) {
-    const Ticker    = String(b.Ticker || b.ticker || '').toUpperCase();
-    const Timeframe = String(b.Timeframe || b.timeframe || '');
-    const Alert     = /sell/i.test(String(b.Alert || b.alert)) ? 'Sell' : 'Buy';
-    const Time      = toHHMM(b.Time || b.time || b.timenow || Date.now());
-    const Zone      = Alert === 'Buy' ? 'green' : 'red';
-    return { Ticker, Timeframe, Alert, Time, Zone };
-  }
-
-  // In-memory dedupe (avoid floods)
-  const recent = new Map(); // key => ts
-
-  // ---------- route ----------
-  router.post('/tv-webhook', express.json({ limit: '1mb' }), (req, res) => {
-    try {
-      // 1) shared secret (required if tvSecret is set)
-      if (tvSecret && req.query.key !== tvSecret) {
-        return res.status(403).json({ ok: false, error: 'Forbidden: bad key' });
+      // Optional shared secret
+      if (tvSecret && (req.query.key || '') !== tvSecret) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
-      // 2) parse & normalize
-      const body  = parseBody(req.body);
-      const alert = normalizeAlert(body);
+      const rawLog = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      console.log('[tv-webhook] raw body:', rawLog);
 
-      if (!alert.Ticker || !alert.Timeframe || !alert.Alert || !alert.Time) {
-        console.warn('[tvWebhook] missing fields in payload:', body);
-        return res.status(400).json({ ok: false, error: 'Bad alert payload' });
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const Ticker    = normTicker(body.Ticker || body.ticker);
+      const Timeframe = normTF(body.Timeframe || body.timeframe);
+      const Alert     = normAlert(body.Alert || body.alert);
+      const Time      = String(body.Time || body.time || body.timenow || '').trim();
+
+      if (!Ticker || !Timeframe || !Alert || !Time) {
+        console.log('[tv-webhook] ignored (missing fields):', { Ticker, Timeframe, Alert, Time });
+        return res.status(204).end();
       }
 
-      // 3) dedupe: same Ticker/TF/Alert within 5s
-      const key = `${alert.Ticker}|${alert.Timeframe}|${alert.Alert}`;
-      const now = Date.now();
-      const last = recent.get(key) || 0;
-      if (now - last < 5000) return res.json({ ok: true, deduped: true });
-      recent.set(key, now);
+      const Zone = Alert === 'Buy' ? 'green' : 'red';
+      const ReceivedAt = new Date().toISOString();
 
-      // 4) merge into alerts list (latest-first, cap 500)
-      const alerts = safeLoad(alertsFilePath);
+      const file = fileForTF(dataDir, Timeframe);
+      let arr = await load(file);
 
-      // row per Ticker (you can change to per (Ticker,TF) if you prefer)
-      let i = alerts.findIndex(a => a.Ticker === alert.Ticker);
-      if (i !== -1) {
-        const row = alerts[i];
-        if (alert.Timeframe === 'AI_5m') {
-          row.AI_5m = alert.Alert;
-          row.Time  = alert.Time;        // show latest 5m time
-          row.Zone  = alert.Zone;        // drive zone by 5m
-        } else if (alert.Timeframe === 'AI_15m') {
-          row.AI_15m = alert.Alert;
-          if (!row.AI_5m) row.Zone = row.Zone || alert.Zone;
-        } else if (alert.Timeframe === 'AI_1h') {
-          row.AI_1h = alert.Alert;
-          if (!row.AI_5m) row.Zone = row.Zone || alert.Zone;
-        } else {
-          // unknown tf: store generically
-          row[alert.Timeframe] = alert.Alert;
-        }
-        // move updated row to top
-        alerts.splice(i, 1);
-        alerts.unshift(row);
-      } else {
-        alerts.unshift({
-          Ticker:  alert.Ticker,
-          Time:    alert.Timeframe === 'AI_5m' ? alert.Time : '',
-          AI_5m:   alert.Timeframe === 'AI_5m'  ? alert.Alert : '',
-          AI_15m:  alert.Timeframe === 'AI_15m' ? alert.Alert : '',
-          AI_1h:   alert.Timeframe === 'AI_1h'  ? alert.Alert : '',
-          Zone:    alert.Zone
-        });
-      }
+      // Upsert by ticker per timeframe
+      const idx = arr.findIndex(r => r.Ticker === Ticker);
+      const row = { Time, Ticker, Alert, Zone, Timeframe, ReceivedAt };
 
-      while (alerts.length > 500) alerts.pop();
+      if (idx !== -1) arr[idx] = row; else arr.unshift(row);
+      await save(file, arr);
 
-      // 5) persist + notify UI
-      safeSave(alertsFilePath, alerts);
-      io.emit('alertsUpdate', alerts);
+      console.log('[tv-webhook] stored:', JSON.stringify(row));
 
-      return res.json({ ok: true, accepted: 1 });
-    } catch (e) {
-      console.error('[tvWebhook] error:', e);
-      return res.status(500).json({ ok: false, error: 'Internal error' });
+      // Emit per-timeframe and generic (if your front end still listens to generic)
+      io.emit(`alertsUpdate:${Timeframe}`, arr);
+      io.emit('alertsUpdate', { timeframe: Timeframe, data: arr });
+
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[tv-webhook] error:', err);
+      // Return 200 so TradingView doesn't endlessly retry (you already logged the error)
+      res.status(200).send('ok');
     }
   });
 

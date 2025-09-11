@@ -750,5 +750,13 @@
     "Zone": "red",
     "Timeframe": "AI_1h",
     "ReceivedAt": "2025-09-11T07:21:39.978Z"
+  },
+  {
+    "Time": "02:21",
+    "Ticker": "MP",
+    "Alert": "Sell",
+    "Zone": "red",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T07:21:59.982Z"
   }
 ]

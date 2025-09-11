@@ -36,8 +36,8 @@ h2 {
 }
 
 /* Buy / Sell titles */
-.buy-title { color: #00FF00; text-shadow: 0 0 5px #00FF00; }
-.sell-title { color: #FF4500; text-shadow: 0 0 5px #FF4500; }
+.buy-title { color: #00FF00; text-shadow: 0 0 10px #00FF00; }
+.sell-title { color: #FF4500; text-shadow: 0 0 10px #FF4500; }
 
 /* ===== Table ===== */
 table {
@@ -86,57 +86,69 @@ th {
 .signal-sell { color: #FF4500; }
 
 /* Diff colors */
-.diff-up { color: #32CD32; font-weight: 600; }
-.diff-down { color: #FF6347; font-weight: 600; }
+.diff-up { color: #32CD32; font-weight: 600; font-size: 0.9em; font-style: italic; }
+.diff-down { color: #FF6347; font-weight: 600; font-size: 0.9em; font-style: italic; }
 
-/* Gold border blink when near-zero */
+/* ===== Near-zero cell styling (zone-colored) ===== */
 td.near-zero {
   position: relative;
-  border: 2px solid gold;
-  border-radius: 6px;
   box-sizing: border-box;
-}
-@keyframes goldBlink {
-  0% { border-color: gold; }
-  50% { border-color: transparent; }
-  100% { border-color: gold; }
-}
-td.near-zero.blink { animation: goldBlink 2.4s ease-in-out infinite; }
-td.near-zero.blink:hover { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) {
-  td.near-zero.blink { animation: none !important; }
+  border-width: 3px;         
+  border-style: solid;
+  border-radius: 8px;        
 }
 
-/* (2) Row highlight on update */
+/* Static frame colors by zone */
+.buy-table  td.near-zero { border-color: #00FF00; }
+.sell-table td.near-zero { border-color: #FF4500; }
+
+/* Zone-colored blink animations (bold glow) */
+@keyframes greenBlink {
+  0%   { border-color: #00FF00; box-shadow: 0 0 12px rgba(0,255,0,0.7); }
+  50%  { border-color: transparent; box-shadow: none; }
+  100% { border-color: #00FF00; box-shadow: 0 0 12px rgba(0,255,0,0.7); }
+}
+@keyframes redBlink {
+  0%   { border-color: #FF4500; box-shadow: 0 0 12px rgba(255,69,0,0.7); }
+  50%  { border-color: transparent; box-shadow: none; }
+  100% { border-color: #FF4500; box-shadow: 0 0 12px rgba(255,69,0,0.7); }
+}
+
+/* Apply blink by zone */
+.buy-table  td.near-zero.blink { animation: greenBlink 1.6s ease-in-out infinite; }
+.sell-table td.near-zero.blink { animation: redBlink 1.6s ease-in-out infinite; }
+
+/* Pause on hover */
+td.near-zero.blink:hover { animation-play-state: paused; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .buy-table  td.near-zero.blink,
+  .sell-table td.near-zero.blink {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Row highlight on update */
 @keyframes rowFlash {
   from { background-color: #333; }
   to   { background-color: transparent; }
 }
 tr.new-row { animation: rowFlash 1.5s ease-out; }
 
-/* (3) Ticker emphasis (2nd column is Ticker in every table) */
+/* Ticker emphasis */
 td:nth-child(2) {
   font-size: 1.2em;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
 
-/* (4) Compact diff styling next to MA/VWAP/DayMid */
-.diff-up, .diff-down {
-  font-size: 0.9em;
-  font-style: italic;
-}
-
-/* (5) Stronger zone title glow */
-.buy-title  { text-shadow: 0 0 10px #00FF00; }  /* stronger than current */
-.sell-title { text-shadow: 0 0 10px #FF4500; }
-
-/* (6) Hover highlight */
+/* Hover highlight */
 tr:hover td {
-  background-color: rgba(255, 215, 0, 0.12); /* subtle gold tint */
+  background-color: rgba(255, 215, 0, 0.12);
 }
 
-/* (7) Rounded corners for row edges */
+/* Rounded corners for row edges */
 td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
 td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-

@@ -1,4 +1,6 @@
 // utils/marketData.js
+// Fetches Price, MA20 (5m/15m/1h), Session VWAP (per TF), and PREVIOUS-DAY midpoint (DayMid)
+
 const fs = require('fs');
 const path = require('path');
 const yahooFinance = require('yahoo-finance2').default;
@@ -6,7 +8,7 @@ const yahooFinance = require('yahoo-finance2').default;
 // Optional: silence Yahoo survey banner
 yahooFinance.suppressNotices?.(['yahooSurvey']);
 
-// -------------------- helpers --------------------
+// -------------------- small helpers --------------------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num = v => (isNum(v) ? v : NaN);
 
@@ -18,7 +20,6 @@ function sma(values, length = 20) {
   return sum / length;
 }
 
-// Build a local "day key" using the exchange gmtoffset (seconds)
 function dayKeyWithOffset(dateObj, gmtoffsetSec) {
   if (!(dateObj instanceof Date)) return null;
   const epochSec = Math.floor(dateObj.getTime() / 1000);
@@ -40,11 +41,15 @@ function sessionVWAP(bars, gmtoffsetSec) {
   let pv = 0, vol = 0;
   for (const b of bars) {
     const key = dayKeyWithOffset(b.date, gmtoffsetSec);
-    if (key !== lastKey) continue; // only today's session
+    if (key !== lastKey) continue; // only bars from today’s session
+
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
-    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 : (isNum(c) ? c : NaN);
+
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
+               isNum(c) ? c : NaN;
     if (!isNum(tp)) continue;
+
     pv += tp * v;
     vol += v;
   }
@@ -58,11 +63,11 @@ function sessionVWAP(bars, gmtoffsetSec) {
  * key: '5m' | '15m' | '1h'
  */
 const cache = {};
-const TTL = { '5m': 60_000, '15m': 120_000, '1h': 300_000 }; // 1m / 2m / 5m
+const TTL =   { '5m':  60_000, '15m': 120_000, '1h': 300_000 };
 const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
-const INTERVAL = { '5m': '5m', '15m': '15m', '1h': '1h' };
+const INTERVAL =    { '5m': '5m',       '15m': '15m',       '1h': '1h' };
 
-async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
+async function fetchIntradaySeries(ticker, key) {
   const nowMs = Date.now();
   const c = cache[ticker]?.[key];
   if (c && (nowMs - c.ts) < TTL[key]) return c;
@@ -70,8 +75,8 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
   const interval = INTERVAL[key];
 
   const tryUnix = async () => {
-    const period2 = Math.floor(nowMs / 1000);
-    const period1 = Math.floor((nowMs - LOOKBACK_MS[key]) / 1000);
+    const period2 = new Date();                                       // ✅ Date objects
+    const period1 = new Date(nowMs - LOOKBACK_MS[key]);
     return yahooFinance.chart(ticker, {
       interval,
       period1,
@@ -79,6 +84,7 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
       includePrePost: false
     });
   };
+
   const tryRange = async () => {
     const range = key === '1h' ? '3mo' : key === '15m' ? '1mo' : '5d';
     return yahooFinance.chart(ticker, {
@@ -125,34 +131,6 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
   return packed;
 }
 
-// -------------------- previous day midpoint --------------------
-async function fetchPrevDayMid(ticker) {
-  try {
-    // Use Date objects per yahoo-finance2 validation
-    const period2 = new Date();
-    const period1 = new Date(Date.now() - 10 * 24 * 3600 * 1000); // ~10 days back
-    const dailyBars = await yahooFinance.historical(ticker, {
-      period1,
-      period2,
-      interval: '1d'
-    });
-
-    if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
-      const prev = dailyBars[dailyBars.length - 2];
-      const hi = Number(prev?.high);
-      const lo = Number(prev?.low);
-      if (Number.isFinite(hi) && Number.isFinite(lo)) {
-        return Number(((hi + lo) / 2).toFixed(2));
-      }
-    }
-    return 'N/A';
-  } catch (e) {
-    console.warn(`[marketData] fetchPrevDayMid failed ${ticker}:`, e.message);
-    return 'N/A';
-  }
-}
-
-// -------------------- per-metric fetchers --------------------
 async function fetchMA20(ticker, key) {
   try {
     const { closes } = await fetchIntradaySeries(ticker, key);
@@ -175,7 +153,33 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
-// -------------------- quote summary (Price + previous-day mid) --------------------
+// -------------------- PREVIOUS-DAY midpoint --------------------
+async function fetchPrevDayMid(ticker) {
+  try {
+    // 15 days back -> now, daily bars to ensure we have yesterday even across holidays
+    const period2 = new Date();
+    const period1 = new Date(Date.now() - 15 * 24 * 3600 * 1000);
+
+    const dailyBars = await yahooFinance.historical(ticker, {
+      period1,
+      period2,
+      interval: '1d'
+    });
+
+    if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
+      const prev = dailyBars[dailyBars.length - 2]; // yesterday
+      if (isNum(prev?.high) && isNum(prev?.low)) {
+        return Number(((prev.high + prev.low) / 2).toFixed(2));
+      }
+    }
+    return 'N/A';
+  } catch (e) {
+    console.warn(`[marketData] fetchPrevDayMid failed ${ticker}:`, e.message);
+    return 'N/A';
+  }
+}
+
+// -------------------- quote summary using PrevDayMid --------------------
 async function fetchQuoteSummary(ticker) {
   try {
     const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
@@ -188,7 +192,7 @@ async function fetchQuoteSummary(ticker) {
   }
 }
 
-// -------------------- top-level: all metrics for a ticker --------------------
+// -------------------- aggregate per ticker --------------------
 async function fetchTickerData(ticker) {
   const [summary, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
     fetchQuoteSummary(ticker),
@@ -198,10 +202,10 @@ async function fetchTickerData(ticker) {
   ]);
   return {
     Price: summary.Price,
-    DayMid: summary.DayMid,              // previous-day midpoint
-    MA20_5m: ma5,   VWAP_5m: vw5,
+    DayMid: summary.DayMid,        // previous-day midpoint
+    MA20_5m: ma5,  VWAP_5m: vw5,
     MA20_15m: ma15, VWAP_15m: vw15,
-    MA20_1h: mah,   VWAP_1h: vwh,
+    MA20_1h: mah,  VWAP_1h: vwh,
   };
 }
 
@@ -233,17 +237,17 @@ function startMarketDataUpdater(io, { dataDir, intervalMs = 5000 }) {
       const a15 = safeLoad(f15);
       const a1h = safeLoad(f1h);
 
-      // union of tickers across all timeframes
       const tickers = [...new Set(
         [...a5, ...a15, ...a1h].map(a => a.Ticker).filter(Boolean)
       )];
+
       if (tickers.length === 0) return;
 
       const entries = await Promise.all(
         tickers.map(async t => [t, await fetchTickerData(t)])
       );
-      const priceUpdates = Object.fromEntries(entries);
 
+      const priceUpdates = Object.fromEntries(entries);
       io.emit('priceUpdate', priceUpdates);
       console.log('[marketData] priceUpdate:', Object.keys(priceUpdates));
     } catch (e) {
@@ -255,4 +259,8 @@ function startMarketDataUpdater(io, { dataDir, intervalMs = 5000 }) {
   setTimeout(() => io.emit('priceUpdate', {}), 1000);
 }
 
-module.exports = { startMarketDataUpdater };
+module.exports = {
+  startMarketDataUpdater,
+  // expose for /debug/fetch
+  fetchTickerData
+};

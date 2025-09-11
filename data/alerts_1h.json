@@ -310,5 +310,13 @@
     "Zone": "green",
     "Timeframe": "AI_1h",
     "ReceivedAt": "2025-09-11T06:45:54.157Z"
+  },
+  {
+    "Time": "01:46",
+    "Ticker": "AMAT",
+    "Alert": "Buy",
+    "Zone": "green",
+    "Timeframe": "AI_1h",
+    "ReceivedAt": "2025-09-11T06:46:39.177Z"
   }
 ]

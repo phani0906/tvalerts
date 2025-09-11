@@ -7,9 +7,7 @@ let alerts15m = [];
 let alerts1h = [];
 let priceData = {};
 
-/* ========= Tolerances =========
-   (you can tweak these; 1h wider by default)
-*/
+/* ========= Tolerances ========= */
 const TOLERANCE = {
   // 5m
   ma20_5m: 0.50,
@@ -62,7 +60,6 @@ function fillMetricCell(td, metricVal, price, tolerance) {
 
 function normalizeRow(row) {
   const r = { ...row };
-  // fill AI_* fields from generic Alert when needed
   if (r.Timeframe === 'AI_5m'  && !r.AI_5m  && r.Alert) r.AI_5m  = r.Alert;
   if (r.Timeframe === 'AI_15m' && !r.AI_15m && r.Alert) r.AI_15m = r.Alert;
   if (r.Timeframe === 'AI_1h'  && !r.AI_1h  && r.Alert) r.AI_1h  = r.Alert;
@@ -83,7 +80,8 @@ function dedupe(rows, timeframeKey) {
   return Array.from(map.values());
 }
 
-/* ========= Renderers (Time, Ticker, Price, Alert, MA20, VWAP, DayMid) ========= */
+/* ========= Renderers ========= */
+/* 5m: header is Time, Ticker, Alert, Price, MA20(5m), VWAP(5m), DayMid */
 function renderFiveMinTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy tbody');
   const sellTbody = document.querySelector('#scannerTableSell tbody');
@@ -96,17 +94,20 @@ function renderFiveMinTable() {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
+    // Time
     let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    // Ticker
     td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
-
+    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_5m || a.Alert || '';
     td.textContent = alertVal;
     if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
-
+    // Price (after Alert)
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
+    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
@@ -116,6 +117,7 @@ function renderFiveMinTable() {
   });
 }
 
+/* 15m: header is Time, Ticker, Price, Alert, … (no change) */
 function renderFifteenMinTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy15 tbody');
   const sellTbody = document.querySelector('#scannerTableSell15 tbody');
@@ -148,6 +150,7 @@ function renderFifteenMinTable() {
   });
 }
 
+/* 1h: header is Time, Ticker, Price, Alert, … (no change) */
 function renderOneHrTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy1h tbody');
   const sellTbody = document.querySelector('#scannerTableSell1h tbody');

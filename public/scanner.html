@@ -4,17 +4,13 @@
     <meta charset="UTF-8" />
     <title>Trading Scanner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- Keep your original look & feel here -->
     <link rel="stylesheet" href="scanner.css?v=2" />
-
-    <!-- Socket.IO client -->
     <script src="/socket.io/socket.io.js"></script>
   </head>
   <body>
     <h2>Trading View Scanner</h2>
 
-    <!-- GREEN ZONE -->
+    <!-- GREEN ZONE (5m) -->
     <div class="table-container buy-table">
       <h3 class="table-title buy-title">🔥 Green Zone (5mins)</h3>
       <table id="scannerTableBuy">
@@ -33,7 +29,7 @@
       </table>
     </div>
 
-    <!-- RED ZONE -->
+    <!-- RED ZONE (5m) -->
     <div class="table-container sell-table">
       <h3 class="table-title sell-title">⚡ Red Zone (5mins)</h3>
       <table id="scannerTableSell">
@@ -51,7 +47,8 @@
         <tbody></tbody>
       </table>
     </div>
-    <!-- ===== 15 MIN TABLES ===== -->
+
+    <!-- GREEN ZONE (15m) -->
     <div class="table-container buy-table">
       <h3 class="table-title buy-title">🔥 Green Zone — 15m</h3>
       <table id="scannerTableBuy15">
@@ -70,6 +67,7 @@
       </table>
     </div>
 
+    <!-- RED ZONE (15m) -->
     <div class="table-container sell-table">
       <h3 class="table-title sell-title">⚡ Red Zone — 15m</h3>
       <table id="scannerTableSell15">
@@ -88,7 +86,7 @@
       </table>
     </div>
 
-    <!-- ===== 1 HOUR TABLES ===== -->
+    <!-- GREEN ZONE (1h) -->
     <div class="table-container buy-table">
       <h3 class="table-title buy-title">🔥 Green Zone — 1h</h3>
       <table id="scannerTableBuy1h">
@@ -107,6 +105,7 @@
       </table>
     </div>
 
+    <!-- RED ZONE (1h) -->
     <div class="table-container sell-table">
       <h3 class="table-title sell-title">⚡ Red Zone — 1h</h3>
       <table id="scannerTableSell1h">
@@ -125,7 +124,6 @@
       </table>
     </div>
 
-    <!-- bump ?v when you update scanner.js to bypass browser cache -->
-    <script src="scanner.js?v=9"></script>
+    <script src="scanner.js?v=13"></script>
   </body>
 </html>

@@ -2,83 +2,61 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-function normTicker(t) {
-  if (!t) return '';
-  return String(t).toUpperCase().split(':').pop().trim();
+function fileForTF(dir, timeframe) {
+  if (timeframe === 'AI_5m')  return path.join(dir, 'alerts_5m.json');
+  if (timeframe === 'AI_15m') return path.join(dir, 'alerts_15m.json');
+  if (timeframe === 'AI_1h')  return path.join(dir, 'alerts_1h.json');
+  return path.join(dir, 'alerts.json');
 }
-function normAlert(a) {
-  const v = String(a || '').trim().toLowerCase();
-  if (v === 'sell') return 'Sell';
-  if (v === 'buy') return 'Buy';
-  return v.includes('sell') ? 'Sell' : 'Buy';
-}
-function normTF(tf) {
-  const v = String(tf || '').trim().toUpperCase();
-  if (v === 'AI_5M') return 'AI_5m';
-  if (v === 'AI_15M') return 'AI_15m';
-  if (v === 'AI_1H' || v === 'AI_60M') return 'AI_1h';
-  return v;
-}
-function fileForTF(baseDir, tf) {
-  switch (tf) {
-    case 'AI_5m':  return path.join(baseDir, 'alerts_5m.json');
-    case 'AI_15m': return path.join(baseDir, 'alerts_15m.json');
-    case 'AI_1h':  return path.join(baseDir, 'alerts_1h.json');
-    default:       return path.join(baseDir, 'alerts_other.json');
-  }
-}
-async function load(file) {
+
+async function readJsonSafe(p) {
   try {
-    const raw = await fs.readFile(file, 'utf8');
-    return raw ? JSON.parse(raw) : [];
+    const raw = await fs.readFile(p, 'utf8');
+    return raw.trim() ? JSON.parse(raw) : [];
   } catch (e) {
-    if (e.code !== 'ENOENT') console.error('[sendAlert] read error:', e);
+    if (e.code !== 'ENOENT') console.warn('[alertHandler] read fail', p, e.message);
     return [];
   }
 }
-async function save(file, arr) {
-  try {
-    await fs.writeFile(file, JSON.stringify(arr, null, 2));
-  } catch (e) {
-    console.error('[sendAlert] write error:', e);
-  }
+
+async function writeJsonSafe(p, data) {
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  await fs.writeFile(p, JSON.stringify(data, null, 2));
 }
 
 function initAlertHandler(app, io, { dataDir }) {
   app.post('/sendAlert', async (req, res) => {
-    try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-      const Ticker    = normTicker(body.Ticker || body.ticker);
-      const Timeframe = normTF(body.Timeframe || body.timeframe);
-      const Alert     = normAlert(body.Alert || body.alert);
-      const Time      = String(body.Time || body.time || '').trim();
-
-      if (!Ticker || !Timeframe || !Alert || !Time) {
-        return res.status(400).json({ error: 'Invalid alert format' });
-      }
-
-      const Zone = Alert === 'Buy' ? 'green' : 'red';
-      const ReceivedAt = new Date().toISOString();
-      const file = fileForTF(dataDir, Timeframe);
-
-      let arr = await load(file);
-      const idx = arr.findIndex(a => a.Ticker === Ticker);
-      const row = { Time, Ticker, Alert, Zone, Timeframe, ReceivedAt };
-
-      if (idx !== -1) arr[idx] = row; else arr.unshift(row);
-      await save(file, arr);
-
-      console.log('Received alert:', JSON.stringify(row));
-
-      io.emit(`alertsUpdate:${Timeframe}`, arr);
-      io.emit('alertsUpdate', { timeframe: Timeframe, data: arr });
-
-      res.json({ success: true });
-    } catch (err) {
-      console.error('sendAlert error:', err);
-      res.status(500).json({ error: 'Internal error' });
+    const alert = req.body;
+    if (!alert || !alert.Ticker || !alert.Timeframe || !alert.Alert || !alert.Time) {
+      return res.status(400).send({ error: 'Invalid alert format' });
     }
+
+    const row = {
+      Time: alert.Time,
+      Ticker: alert.Ticker,
+      Alert: alert.Alert,
+      Zone: (alert.Alert || '').toLowerCase() === 'buy' ? 'green' : 'red',
+      Timeframe: alert.Timeframe,
+      ReceivedAt: new Date().toISOString()
+    };
+
+    const file = fileForTF(dataDir, row.Timeframe);
+    let rows = await readJsonSafe(file);
+    rows.push(row);
+    if (rows.length > 500) rows = rows.slice(-500);
+    await writeJsonSafe(file, rows);
+
+    io.emit(`alertsUpdate:${row.Timeframe}`, rows);
+    io.emit('alertsUpdate', rows);
+
+    console.log(`[alerts] ${row.Timeframe} ${row.Ticker} ${row.Alert} -> ${path.basename(file)} (count=${rows.length})`);
+    res.send({ ok: true });
   });
+
+  // initial-load endpoints
+  app.get('/alerts/5m', async (_req, res) => res.send(await readJsonSafe(path.join(dataDir, 'alerts_5m.json'))));
+  app.get('/alerts/15m', async (_req, res) => res.send(await readJsonSafe(path.join(dataDir, 'alerts_15m.json'))));
+  app.get('/alerts/1h', async (_req, res) => res.send(await readJsonSafe(path.join(dataDir, 'alerts_1h.json'))));
 }
 
 module.exports = { initAlertHandler };

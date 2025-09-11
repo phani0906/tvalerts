@@ -1,8 +1,4 @@
 // utils/marketData.js
-// Computes MA20 + session VWAP per timeframe and emits priceUpdate.
-// DayMid = (yesterday's high + yesterday's low) / 2
-// VWAP (per timeframe) = session-only vwap using typicalPrice=(H+L+C)/3
-
 const fs = require('fs');
 const path = require('path');
 const yahooFinance = require('yahoo-finance2').default;
@@ -10,15 +6,9 @@ const yahooFinance = require('yahoo-finance2').default;
 // Optional: silence Yahoo survey banner
 yahooFinance.suppressNotices?.(['yahooSurvey']);
 
-// -------------------- small helpers --------------------
+// -------------------- helpers --------------------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num = v => (isNum(v) ? v : NaN);
-
-// Unwrap YahooNumber like { raw: 123.45 } → 123.45
-const yNum = (v) => {
-  if (v && typeof v === 'object' && v.raw != null) return Number(v.raw);
-  return (typeof v === 'number') ? v : NaN;
-};
 
 function sma(values, length = 20) {
   const last = values.slice(-length);
@@ -50,15 +40,11 @@ function sessionVWAP(bars, gmtoffsetSec) {
   let pv = 0, vol = 0;
   for (const b of bars) {
     const key = dayKeyWithOffset(b.date, gmtoffsetSec);
-    if (key !== lastKey) continue; // only bars from today's session
-
+    if (key !== lastKey) continue; // only today's session
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
-
-    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
-               isNum(c) ? c : NaN;
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 : (isNum(c) ? c : NaN);
     if (!isNum(tp)) continue;
-
     pv += tp * v;
     vol += v;
   }
@@ -66,7 +52,7 @@ function sessionVWAP(bars, gmtoffsetSec) {
   return pv / vol;
 }
 
-// -------------------- caching --------------------
+// -------------------- caching for intraday --------------------
 /**
  * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
  * key: '5m' | '15m' | '1h'
@@ -76,7 +62,6 @@ const TTL = { '5m': 60_000, '15m': 120_000, '1h': 300_000 }; // 1m / 2m / 5m
 const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
 const INTERVAL = { '5m': '5m', '15m': '15m', '1h': '1h' };
 
-// Robust intraday fetch: try UNIX seconds (period1/2), fall back to range
 async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
   const nowMs = Date.now();
   const c = cache[ticker]?.[key];
@@ -140,6 +125,34 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
   return packed;
 }
 
+// -------------------- previous day midpoint --------------------
+async function fetchPrevDayMid(ticker) {
+  try {
+    // Use Date objects per yahoo-finance2 validation
+    const period2 = new Date();
+    const period1 = new Date(Date.now() - 10 * 24 * 3600 * 1000); // ~10 days back
+    const dailyBars = await yahooFinance.historical(ticker, {
+      period1,
+      period2,
+      interval: '1d'
+    });
+
+    if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
+      const prev = dailyBars[dailyBars.length - 2];
+      const hi = Number(prev?.high);
+      const lo = Number(prev?.low);
+      if (Number.isFinite(hi) && Number.isFinite(lo)) {
+        return Number(((hi + lo) / 2).toFixed(2));
+      }
+    }
+    return 'N/A';
+  } catch (e) {
+    console.warn(`[marketData] fetchPrevDayMid failed ${ticker}:`, e.message);
+    return 'N/A';
+  }
+}
+
+// -------------------- per-metric fetchers --------------------
 async function fetchMA20(ticker, key) {
   try {
     const { closes } = await fetchIntradaySeries(ticker, key);
@@ -162,154 +175,77 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
-// -------------------- DayMid (previous day) + Price --------------------
-async function fetchQuoteAndPrevDayMid(ticker) {
+// -------------------- quote summary (Price + previous-day mid) --------------------
+async function fetchQuoteSummary(ticker) {
   try {
-    // Current price (unwrap YahooNumber safely)
-    const qs = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
-    const PriceRaw = qs?.price?.regularMarketPrice;
-    const PriceNum = yNum(PriceRaw);
-    const Price = Number.isFinite(PriceNum) ? Number(PriceNum.toFixed(2)) : 'N/A';
-
-    // Previous day's H/L via historical; include today + previous so we can detect “yesterday”
-    const today = new Date();
-    const start = new Date(today.getTime() - 3 * 86400000); // 3 days back for safety
-    const hist = await yahooFinance.historical(ticker, {
-      period1: start,
-      period2: today,
-      interval: '1d'
-    });
-
-    const days = (hist || []).filter(d => d && d.date instanceof Date)
-                             .sort((a, b) => a.date - b.date);
-
-    let prevDay = null;
-    if (days.length >= 2) {
-      // last entry may be today's partial; choose the previous one
-      prevDay = days[days.length - 2];
-    } else if (days.length === 1) {
-      prevDay = days[0]; // fallback
-    }
-
-    let DayMid = 'N/A';
-    if (prevDay && isNum(prevDay.high) && isNum(prevDay.low)) {
-      DayMid = Number(((prevDay.high + prevDay.low) / 2).toFixed(2));
-    }
-
-    return { Price, DayMid };
+    const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
+    const Price = quote.price?.regularMarketPrice ?? 'N/A';
+    const PrevDayMid = await fetchPrevDayMid(ticker);
+    return { Price, DayMid: PrevDayMid };
   } catch (err) {
-    console.error(`quote/prevDayMid error ${ticker}:`, err.message);
+    console.error(`quoteSummary error ${ticker}:`, err.message);
     return { Price: 'Error', DayMid: 'Error' };
   }
 }
 
-// -------------------- top-level fetchers --------------------
-async function fetchTickerData(ticker, opts = {}) {
-  const { includeExtraTF = false } = opts;
-
-  if (!includeExtraTF) {
-    // minimal set (5m only)
-    const [summary, ma5, vw5] = await Promise.all([
-      fetchQuoteAndPrevDayMid(ticker),
-      fetchMA20(ticker, '5m'),
-      fetchVWAP(ticker, '5m'),
-    ]);
-    return {
-      Price: summary.Price,
-      DayMid: summary.DayMid,   // previous day's mid
-      MA20_5m: ma5,
-      VWAP_5m: vw5,
-    };
-  }
-
-  // full set when 15m/1h are in use
+// -------------------- top-level: all metrics for a ticker --------------------
+async function fetchTickerData(ticker) {
   const [summary, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
-    fetchQuoteAndPrevDayMid(ticker),
+    fetchQuoteSummary(ticker),
     fetchMA20(ticker, '5m'),  fetchVWAP(ticker, '5m'),
     fetchMA20(ticker, '15m'), fetchVWAP(ticker, '15m'),
     fetchMA20(ticker, '1h'),  fetchVWAP(ticker, '1h'),
   ]);
   return {
     Price: summary.Price,
-    DayMid: summary.DayMid,    // previous day's mid
+    DayMid: summary.DayMid,              // previous-day midpoint
     MA20_5m: ma5,   VWAP_5m: vw5,
     MA20_15m: ma15, VWAP_15m: vw15,
-    MA20_1h: mah,  VWAP_1h: vwh,
+    MA20_1h: mah,   VWAP_1h: vwh,
   };
 }
 
-// -------------------- alert loaders (multi-file) --------------------
-function readJsonSafe(filePath) {
+// -------------------- alerts loader --------------------
+function safeLoad(file) {
   try {
-    if (!fs.existsSync(filePath)) return [];
-    const raw = fs.readFileSync(filePath, 'utf8').trim();
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch (e) {
-    console.warn('[marketData] failed to read', path.basename(filePath), e.message);
+    if (!fs.existsSync(file)) return [];
+    const raw = fs.readFileSync(file, 'utf8').trim();
+    return raw ? JSON.parse(raw) : [];
+  } catch {
     return [];
   }
 }
 
-function loadAllAlerts(dataDir) {
+// -------------------- updater loop --------------------
+/**
+ * startMarketDataUpdater(io, { dataDir, intervalMs })
+ *  - dataDir: required (server passes DATA_DIR)
+ *  - intervalMs: default 5000
+ */
+function startMarketDataUpdater(io, { dataDir, intervalMs = 5000 }) {
   const f5  = path.join(dataDir, 'alerts_5m.json');
   const f15 = path.join(dataDir, 'alerts_15m.json');
   const f1h = path.join(dataDir, 'alerts_1h.json');
-  const fallback = path.join(dataDir, 'alerts.json');
-
-  const a5  = readJsonSafe(f5);
-  const a15 = readJsonSafe(f15);
-  const a1h = readJsonSafe(f1h);
-
-  let all = [...a5, ...a15, ...a1h];
-
-  // backward compatibility if new files are empty
-  if (all.length === 0) {
-    const old = readJsonSafe(fallback);
-    all = old;
-  }
-
-  return all;
-}
-
-// -------------------- updater loop --------------------
-/**
- * startMarketDataUpdater(io, { dataDir, intervalMs, includeExtraTF })
- *  - dataDir: required (server passes DATA_DIR)
- *  - intervalMs: default 5000
- *  - includeExtraTF: if not provided, auto-enable if any 15m/1h alerts exist
- */
-function startMarketDataUpdater(io, opts = {}) {
-  const {
-    dataDir,
-    intervalMs = 5000,
-    includeExtraTF: includeExtraTFOpt,
-  } = opts;
-
-  if (!dataDir) {
-    console.error('[marketData] startMarketDataUpdater requires dataDir');
-  }
 
   setInterval(async () => {
     try {
-      const alerts = loadAllAlerts(dataDir || path.join(__dirname, '..', 'data'));
-      const tickers = [...new Set(alerts.map(a => a.Ticker).filter(Boolean))];
+      const a5  = safeLoad(f5);
+      const a15 = safeLoad(f15);
+      const a1h = safeLoad(f1h);
 
-      // auto-enable extra TFs if alerts present
-      const has15 = alerts.some(a => a.Timeframe === 'AI_15m');
-      const has1h = alerts.some(a => a.Timeframe === 'AI_1h');
-      const includeExtraTF = includeExtraTFOpt != null ? includeExtraTFOpt : (has15 || has1h);
-
+      // union of tickers across all timeframes
+      const tickers = [...new Set(
+        [...a5, ...a15, ...a1h].map(a => a.Ticker).filter(Boolean)
+      )];
       if (tickers.length === 0) return;
 
       const entries = await Promise.all(
-        tickers.map(async t => [t, await fetchTickerData(t, { includeExtraTF })])
+        tickers.map(async t => [t, await fetchTickerData(t)])
       );
-
       const priceUpdates = Object.fromEntries(entries);
+
       io.emit('priceUpdate', priceUpdates);
-      // Uncomment for debugging:
-      // console.log('[marketData] priceUpdate tickers:', Object.keys(priceUpdates));
+      console.log('[marketData] priceUpdate:', Object.keys(priceUpdates));
     } catch (e) {
       console.error('[marketData] updater error:', e.message);
     }

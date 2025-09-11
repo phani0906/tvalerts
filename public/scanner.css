@@ -1,145 +1,108 @@
 /* ===== Body and Heading ===== */
 body {
-    background-color: #000;
-    color: #FFD700; /* gold/yellow text */
-    font-family: Arial, sans-serif;
-    font-size: 18px;
-    margin: 10px;
-  
-    /* Background Image */
-    background-image: url('images/backgroundjpg.jpg'); /* path relative to public folder */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-  }
-  
-  h2 {
-    color: #FFA500;
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  
-  /* ===== Table Container ===== */
-  .table-container {
-    margin-bottom: 30px;
-    padding: 10px;
-    border-radius: 10px;
-  }
-  
-  /* ===== Table Titles ===== */
-  .table-title {
-    font-size: 1.5em;
-    margin-bottom: 10px;
-    font-weight: bold;
-  }
-  
-  .table-title::before {
-    margin-right: 8px;
-  }
-  
-  /* Buy Table Title */
-  .buy-title {
-    color: #00FF00;
-    text-shadow: 0 0 5px #00FF00;
-  }
-  
-  /* Sell Table Title */
-  .sell-title {
-    color: #FF4500;
-    text-shadow: 0 0 5px #FF4500;
-  }
-  
-  /* ===== Table Styling ===== */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  
-  th, td {
-    border: 1px solid #444;
-    padding: 8px;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    background-color: rgba(17, 17, 17, 0.8);
-    font-weight: bold;
-  }
-  
-  /* Slightly lighter even rows */
-  tr:nth-child(even) td {
-    background-color: rgba(26, 26, 26, 0.8);
-  }
-  
-  th {
-    background-color: rgba(34, 34, 34, 0.9);
-    color: #FFA500;
-  }
-  
-  /* ===== Zone Containers ===== */
-  .buy-table {
-    border: 3px solid #00FF00;
-    border-radius: 12px;
-    padding: 10px;
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
-    background: rgba(0, 0, 0, 0.6);
-  }
-  
-  .sell-table {
-    border: 3px solid #FF4500;
-    border-radius: 12px;
-    padding: 10px;
-    box-shadow: 0 0 15px rgba(255, 69, 0, 0.6);
-    background: rgba(0, 0, 0, 0.6);
-  }
-  
-  /* ===== Signal Colors ===== */
-  .signal-buy {
-    color: #00FF00;
-  }
-  .signal-sell {
-    color: #FF4500;
-  }
-  
-  /* ===== Diff Coloring ===== */
-  .diff-up {
-    color: #32CD32; /* lime green */
-    font-weight: 600;
-  }
-  .diff-down {
-    color: #FF6347; /* tomato red */
-    font-weight: 600;
-  }
-  
-  /* ===== Near-zero Blink (gold border only) ===== */
-  td.near-zero {
-    position: relative;
-    border: 2px solid gold;
-    border-radius: 6px;
-    box-sizing: border-box;
-  }
-  
-  @keyframes goldBlink {
-    0%   { border-color: gold; }
-    50%  { border-color: transparent; }
-    100% { border-color: gold; }
-  }
-  
-  td.near-zero.blink {
-    animation: goldBlink 2.4s ease-in-out infinite;
-  }
-  
-  td.near-zero.blink:hover {
-    animation-play-state: paused;
-  }
-  
-  @media (prefers-reduced-motion: reduce) {
-    td.near-zero.blink {
-      animation: none !important;
-    }
-  }
-  
+  background-color: #000;
+  color: #FFD700;
+  font-family: Arial, sans-serif;
+  font-size: 18px;
+  margin: 10px;
+  background-image: url('images/backgroundjpg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+h2 {
+  color: #FFA500;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* ===== Table Container ===== */
+.table-container {
+  margin-bottom: 30px;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+/* ===== Table Titles ===== */
+.table-title {
+  font-size: 1.5em;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+.table-title::before {
+  margin-right: 8px;
+}
+
+/* Buy / Sell titles */
+.buy-title { color: #00FF00; text-shadow: 0 0 5px #00FF00; }
+.sell-title { color: #FF4500; text-shadow: 0 0 5px #FF4500; }
+
+/* ===== Table ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border-radius: 10px;
+  overflow: hidden;
+}
+th, td {
+  border: 1px solid #444;
+  padding: 8px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-color: rgba(17, 17, 17, 0.8);
+  font-weight: bold;
+}
+tr:nth-child(even) td {
+  background-color: rgba(26, 26, 26, 0.8);
+}
+th {
+  background-color: rgba(34, 34, 34, 0.9);
+  color: #FFA500;
+}
+
+/* Zone frames */
+.buy-table {
+  border: 3px solid #00FF00;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 0 15px rgba(0,255,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
+}
+.sell-table {
+  border: 3px solid #FF4500;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 0 15px rgba(255,69,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Signals */
+.signal-buy { color: #00FF00; }
+.signal-sell { color: #FF4500; }
+
+/* Diff colors */
+.diff-up { color: #32CD32; font-weight: 600; }
+.diff-down { color: #FF6347; font-weight: 600; }
+
+/* Gold border blink when near-zero */
+td.near-zero {
+  position: relative;
+  border: 2px solid gold;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+@keyframes goldBlink {
+  0% { border-color: gold; }
+  50% { border-color: transparent; }
+  100% { border-color: gold; }
+}
+td.near-zero.blink { animation: goldBlink 2.4s ease-in-out infinite; }
+td.near-zero.blink:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  td.near-zero.blink { animation: none !important; }
+}

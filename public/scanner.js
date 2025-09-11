@@ -140,20 +140,23 @@ function renderFifteenMinTable() {
   sellTbody.innerHTML = '';
 
   alerts15m.forEach(a => {
-    const tkr = (a.Ticker || '').toUpperCase();
-    const p = priceData[tkr] || {};
+    const p = priceData[a.Ticker] || {};
     const row = document.createElement('tr');
 
+    // header order: Time, Ticker, Alert, Price, MA20(15m), VWAP(15m), DayMid
     let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
-    td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
+    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
 
+    // Alert BEFORE Price
     td = document.createElement('td');
     const alertVal = a.AI_15m || a.Alert || '';
     td.textContent = alertVal;
     if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
+
+    // Price AFTER Alert
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
     td = document.createElement('td'); fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m); row.appendChild(td);
@@ -163,6 +166,7 @@ function renderFifteenMinTable() {
     (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 /* 1h: header is Time, Ticker, Price, Alert, … */
 function renderOneHrTable() {

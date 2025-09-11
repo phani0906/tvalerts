@@ -180,7 +180,6 @@ async function fetchQuoteAndPrevDayMid(ticker) {
       interval: '1d'
     });
 
-    // Sort by date asc, pick the last complete day prior to today
     const days = (hist || []).filter(d => d && d.date instanceof Date)
                              .sort((a, b) => a.date - b.date);
 
@@ -209,7 +208,7 @@ async function fetchTickerData(ticker, opts = {}) {
   const { includeExtraTF = false } = opts;
 
   if (!includeExtraTF) {
-    // minimal set (current table needs 5m + prevDayMid + Price)
+    // minimal set (5m only)
     const [summary, ma5, vw5] = await Promise.all([
       fetchQuoteAndPrevDayMid(ticker),
       fetchMA20(ticker, '5m'),
@@ -239,17 +238,38 @@ async function fetchTickerData(ticker, opts = {}) {
   };
 }
 
-// -------------------- alerts loader --------------------
-function safeLoadAlerts(file) {
+// -------------------- alert loaders (multi-file) --------------------
+function readJsonSafe(filePath) {
   try {
-    if (!fs.existsSync(file)) return [];
-    const raw = fs.readFileSync(file, 'utf8').trim();
+    if (!fs.existsSync(filePath)) return [];
+    const raw = fs.readFileSync(filePath, 'utf8').trim();
     if (!raw) return [];
     return JSON.parse(raw);
   } catch (e) {
-    console.error('[marketData] Invalid alerts file:', e.message);
+    console.warn('[marketData] failed to read', path.basename(filePath), e.message);
     return [];
   }
+}
+
+function loadAllAlerts(dataDir) {
+  const f5  = path.join(dataDir, 'alerts_5m.json');
+  const f15 = path.join(dataDir, 'alerts_15m.json');
+  const f1h = path.join(dataDir, 'alerts_1h.json');
+  const fallback = path.join(dataDir, 'alerts.json');
+
+  const a5  = readJsonSafe(f5);
+  const a15 = readJsonSafe(f15);
+  const a1h = readJsonSafe(f1h);
+
+  let all = [...a5, ...a15, ...a1h];
+
+  // backward compatibility if new files are empty
+  if (all.length === 0) {
+    const old = readJsonSafe(fallback);
+    all = old;
+  }
+
+  return all;
 }
 
 // -------------------- updater loop --------------------
@@ -257,21 +277,29 @@ function safeLoadAlerts(file) {
  * startMarketDataUpdater(io, { dataDir, intervalMs, includeExtraTF })
  *  - dataDir: required (server passes DATA_DIR)
  *  - intervalMs: default 5000
- *  - includeExtraTF: false by default (only 5m metrics)
+ *  - includeExtraTF: if not provided, auto-enable if any 15m/1h alerts exist
  */
 function startMarketDataUpdater(io, opts = {}) {
   const {
     dataDir,
     intervalMs = 5000,
-    includeExtraTF = false,
+    includeExtraTF: includeExtraTFOpt,
   } = opts;
 
-  const alertsFilePath = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
+  if (!dataDir) {
+    console.error('[marketData] startMarketDataUpdater requires dataDir');
+  }
 
   setInterval(async () => {
     try {
-      const alerts = safeLoadAlerts(alertsFilePath);
+      const alerts = loadAllAlerts(dataDir || path.join(__dirname, '..', 'data'));
       const tickers = [...new Set(alerts.map(a => a.Ticker).filter(Boolean))];
+
+      // auto-enable extra TFs if alerts present
+      const has15 = alerts.some(a => a.Timeframe === 'AI_15m');
+      const has1h = alerts.some(a => a.Timeframe === 'AI_1h');
+      const includeExtraTF = includeExtraTFOpt != null ? includeExtraTFOpt : (has15 || has1h);
+
       if (tickers.length === 0) return;
 
       const entries = await Promise.all(
@@ -279,8 +307,9 @@ function startMarketDataUpdater(io, opts = {}) {
       );
 
       const priceUpdates = Object.fromEntries(entries);
-      // console.log('[marketData] emit priceUpdate for', Object.keys(priceUpdates).length, 'tickers');
       io.emit('priceUpdate', priceUpdates);
+      // Uncomment for debugging:
+      // console.log('[marketData] priceUpdate tickers:', Object.keys(priceUpdates));
     } catch (e) {
       console.error('[marketData] updater error:', e.message);
     }

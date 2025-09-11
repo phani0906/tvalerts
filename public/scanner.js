@@ -84,166 +84,101 @@ function dedupe(rows, timeframeKey) {
 }
 
 /* ========= Renderers (Time, Ticker, Price, Alert, MA20, VWAP, DayMid) ========= */
-// --- shared helpers (keep your existing ones) ---
-// toNum, fmt2, fillMetricCell ...
+function renderFiveMinTable() {
+  const buyTbody  = document.querySelector('#scannerTableBuy tbody');
+  const sellTbody = document.querySelector('#scannerTableSell tbody');
+  if (!buyTbody || !sellTbody) return;
 
-// ============ 5 MIN ============
-// rows: [{ Time, Ticker, AI_5m: 'Buy'|'Sell' }]
-function renderFiveMinTable(rows) {
-  const buyTbody  = document.querySelector('#scannerTableBuy_5m tbody');
-  const sellTbody = document.querySelector('#scannerTableSell_5m tbody');
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  rows.forEach(a => {
+  alerts5m.forEach(a => {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = a.Time || '';
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
-    // Ticker
     td = document.createElement('td');
-    td.textContent = a.Ticker || '';
+    const alertVal = a.AI_5m || a.Alert || '';
+    td.textContent = alertVal;
+    if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
+    if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Alert (before Price)
-    td = document.createElement('td');
-    td.textContent = a.AI_5m || '';
-    if (td.textContent === 'Buy') td.classList.add('signal-buy');
-    else if (td.textContent === 'Sell') td.classList.add('signal-sell');
-    row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // MA20(5m)
-    td = document.createElement('td');
-    fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m);
-    row.appendChild(td);
-
-    // VWAP(5m)
-    td = document.createElement('td');
-    fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m);
-    row.appendChild(td);
-
-    // DayMid (prev day mid)
-    td = document.createElement('td');
-    fillMetricCell(td, p.DayMid, p.Price, TOLERANCE.daymid);
-    row.appendChild(td);
-
-    (a.AI_5m === 'Buy' ? buyTbody : sellTbody).appendChild(row);
+    const isBuy = (alertVal || '').toLowerCase() === 'buy';
+    (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
 
-// ============ 15 MIN ============
-function renderFifteenMinTable(rows) {
-  const buyTbody  = document.querySelector('#scannerTableBuy_15m tbody');
-  const sellTbody = document.querySelector('#scannerTableSell_15m tbody');
+function renderFifteenMinTable() {
+  const buyTbody  = document.querySelector('#scannerTableBuy15 tbody');
+  const sellTbody = document.querySelector('#scannerTableSell15 tbody');
+  if (!buyTbody || !sellTbody) return;
+
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  rows.forEach(a => {
+  alerts15m.forEach(a => {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = a.Time || '';
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
-    // Ticker
     td = document.createElement('td');
-    td.textContent = a.Ticker || '';
+    const alertVal = a.AI_15m || a.Alert || '';
+    td.textContent = alertVal;
+    if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
+    if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Alert (before Price)
-    td = document.createElement('td');
-    td.textContent = a.AI_15m || '';
-    if (td.textContent === 'Buy') td.classList.add('signal-buy');
-    else if (td.textContent === 'Sell') td.classList.add('signal-sell');
-    row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.DayMid,     p.Price, TOLERANCE.daymid_15m); row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // MA20(15m)
-    td = document.createElement('td');
-    fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m ?? 1.00);
-    row.appendChild(td);
-
-    // VWAP(15m)
-    td = document.createElement('td');
-    fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m ?? 1.00);
-    row.appendChild(td);
-
-    // DayMid
-    td = document.createElement('td');
-    fillMetricCell(td, p.DayMid, p.Price, TOLERANCE.daymid);
-    row.appendChild(td);
-
-    (a.AI_15m === 'Buy' ? buyTbody : sellTbody).appendChild(row);
+    const isBuy = (alertVal || '').toLowerCase() === 'buy';
+    (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
 
-// ============ 1 HOUR ============
-function renderOneHourTable(rows) {
-  const buyTbody  = document.querySelector('#scannerTableBuy_1h tbody');
-  const sellTbody = document.querySelector('#scannerTableSell_1h tbody');
+function renderOneHrTable() {
+  const buyTbody  = document.querySelector('#scannerTableBuy1h tbody');
+  const sellTbody = document.querySelector('#scannerTableSell1h tbody');
+  if (!buyTbody || !sellTbody) return;
+
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  rows.forEach(a => {
+  alerts1h.forEach(a => {
     const row = document.createElement('tr');
     const p = priceData[a.Ticker] || {};
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = a.Time || '';
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
-    // Ticker
     td = document.createElement('td');
-    td.textContent = a.Ticker || '';
+    const alertVal = a.AI_1h || a.Alert || '';
+    td.textContent = alertVal;
+    if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
+    if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Alert (before Price)
-    td = document.createElement('td');
-    td.textContent = a.AI_1h || '';
-    if (td.textContent === 'Buy') td.classList.add('signal-buy');
-    else if (td.textContent === 'Sell') td.classList.add('signal-sell');
-    row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.MA20_1h, p.Price, TOLERANCE.ma20_1h); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.VWAP_1h, p.Price, TOLERANCE.vwap_1h); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // MA20(1h)
-    td = document.createElement('td');
-    fillMetricCell(td, p.MA20_1h, p.Price, TOLERANCE.ma20_1h ?? 2.00);
-    row.appendChild(td);
-
-    // VWAP(1h)
-    td = document.createElement('td');
-    fillMetricCell(td, p.VWAP_1h, p.Price, TOLERANCE.vwap_1h ?? 2.00);
-    row.appendChild(td);
-
-    // DayMid
-    td = document.createElement('td');
-    fillMetricCell(td, p.DayMid, p.Price, TOLERANCE.daymid);
-    row.appendChild(td);
-
-    (a.AI_1h === 'Buy' ? buyTbody : sellTbody).appendChild(row);
+    const isBuy = (alertVal || '').toLowerCase() === 'buy';
+    (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
-
 
 /* ========= Sockets ========= */
 socket.on('alertsUpdate:AI_5m', rows => {

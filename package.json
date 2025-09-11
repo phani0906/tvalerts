@@ -13,9 +13,12 @@
     "dotenv": "^17.2.2",
     "express": "^4.19.2",
     "socket.io": "^4.7.5",
-    "yahoo-finance2": "^3.22.3"
+    "yahoo-finance2": "^2.13.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
+  },
+    "engines": {
+    "node": "20.x"
   }
 }

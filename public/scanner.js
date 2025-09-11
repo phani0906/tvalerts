@@ -128,25 +128,41 @@ function renderFiveMinTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  alerts5m.forEach(a => {
-    const tkr = (a.Ticker || '').toUpperCase();
-    const p = priceData[tkr] || {};
-    const row = document.createElement('tr');
+  // ✅ sort newest first
+  const sorted = [...alerts5m].sort((a, b) => {
+    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
+    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
+    return tb - ta; // descending
+  });
 
-    // Time
-    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
+  sorted.forEach(a => {
+    const row = document.createElement('tr');
+    const p = priceData[a.Ticker] || {};
+
+    // Time column
+    let td = document.createElement('td');
+    td.textContent = formatTimeToCST(a.Time);
+    row.appendChild(td);
+
     // Ticker
-    td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
-    // Alert (before Price)
+    td = document.createElement('td');
+    td.textContent = a.Ticker || '';
+    row.appendChild(td);
+
+    // Alert
     td = document.createElement('td');
     const alertVal = a.AI_5m || a.Alert || '';
     td.textContent = alertVal;
-    if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
+    if ((alertVal || '').toLowerCase() === 'buy') td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
+
     // Price
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
-    // Metrics
+    td = document.createElement('td');
+    td.textContent = fmt2(toNum(p.Price));
+    row.appendChild(td);
+
+    // Metrics…
     td = document.createElement('td'); fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
@@ -155,6 +171,7 @@ function renderFiveMinTable() {
     (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 /* 15m: header is Time, Ticker, Price, Alert, … */
 function renderFifteenMinTable() {
@@ -165,15 +182,27 @@ function renderFifteenMinTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  alerts15m.forEach(a => {
+  const sorted = [...alerts15m].sort((a, b) => {
+    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
+    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
+    return tb - ta; // newest first
+  });
+
+  sorted.forEach(a => {
     const p = priceData[a.Ticker] || {};
     const row = document.createElement('tr');
 
-    // header order: Time, Ticker, Alert, Price, MA20(15m), VWAP(15m), DayMid
-    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
-    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
+    // Time
+    let td = document.createElement('td');
+    td.textContent = formatTimeToCST(a.Time);
+    row.appendChild(td);
 
-    // Alert BEFORE Price
+    // Ticker
+    td = document.createElement('td');
+    td.textContent = a.Ticker || '';
+    row.appendChild(td);
+
+    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_15m || a.Alert || '';
     td.textContent = alertVal;
@@ -181,9 +210,12 @@ function renderFifteenMinTable() {
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Price AFTER Alert
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
+    // Price
+    td = document.createElement('td');
+    td.textContent = fmt2(toNum(p.Price));
+    row.appendChild(td);
 
+    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,     p.Price, TOLERANCE.daymid_15m); row.appendChild(td);
@@ -192,6 +224,7 @@ function renderFifteenMinTable() {
     (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 
 /* 1h: header is Time, Ticker, Price, Alert, … */
@@ -203,15 +236,27 @@ function renderOneHrTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  alerts1h.forEach(a => {
+  const sorted = [...alerts1h].sort((a, b) => {
+    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
+    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
+    return tb - ta; // newest first
+  });
+
+  sorted.forEach(a => {
     const p = priceData[a.Ticker] || {};
     const row = document.createElement('tr');
 
-    // header order: Time, Ticker, Alert, Price, MA20(1h), VWAP(1h), DayMid
-    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
-    td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
+    // Time
+    let td = document.createElement('td');
+    td.textContent = formatTimeToCST(a.Time);
+    row.appendChild(td);
 
-    // Alert BEFORE Price
+    // Ticker
+    td = document.createElement('td');
+    td.textContent = a.Ticker || '';
+    row.appendChild(td);
+
+    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_1h || a.Alert || '';
     td.textContent = alertVal;
@@ -219,17 +264,21 @@ function renderOneHrTable() {
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Price AFTER Alert
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
+    // Price
+    td = document.createElement('td');
+    td.textContent = fmt2(toNum(p.Price));
+    row.appendChild(td);
 
+    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_1h, p.Price, TOLERANCE.ma20_1h); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_1h, p.Price, TOLERANCE.vwap_1h); row.appendChild(td);
-    td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.DayMid,   p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
     (isBuy ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 
 /* ========= Socket wiring ========= */

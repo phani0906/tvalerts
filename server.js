@@ -178,6 +178,24 @@ app.get('/alerts/1h', async (_req, res) => {
   res.status(200).json(data);
 });
 
+app.post('/clear-alerts', async (req, res) => {
+  const tfiles = ['alerts_5m.json', 'alerts_15m.json', 'alerts_1h.json'];
+  try {
+    for (const f of tfiles) {
+      const fpath = path.join(DATA_DIR, f);
+      await fs.promises.writeFile(fpath, '[]'); // overwrite with empty array
+    }
+    io.emit('alertsUpdate:AI_5m', []);
+    io.emit('alertsUpdate:AI_15m', []);
+    io.emit('alertsUpdate:AI_1h', []);
+    res.json({ success: true, cleared: tfiles });
+  } catch (e) {
+    console.error('Error clearing alerts:', e);
+    res.status(500).json({ error: 'Failed to clear alerts' });
+  }
+});
+
+
 // ---------- Start ----------
 server.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);

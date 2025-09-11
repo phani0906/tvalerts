@@ -7,7 +7,7 @@ const socket = io();
 let alerts5m = [];
 let alerts15m = [];
 let alerts1h = [];
-let priceData = {}; // { [ticker]: { Price, DayMid, MA20_5m, VWAP_5m, ... } }
+let priceData = {}; // { [TICKER]: { Price, DayMid, MA20_*, VWAP_* } }
 
 /* ========= Tolerances (blink when |price - metric| <= tolerance) ========= */
 const TOLERANCE = {
@@ -39,7 +39,6 @@ function appendWithFlash(tbody, row) {
   setTimeout(() => row.classList.remove('new-row'), 1500);
 }
 
-
 function formatTimeToCST(isoString) {
   if (!isoString) return '';
   try {
@@ -60,7 +59,7 @@ function formatTimeToCST(isoString) {
     const hour  = parts.find(p => p.type === 'hour').value;
     const min   = parts.find(p => p.type === 'minute').value;
 
-    return `${day} ${mon}'${year} ${hour}:${min}`;
+    return `${day} ${mon}'${year} ${hour}:${min}`; // e.g., 11 Sep'25 14:45
   } catch {
     return isoString;
   }
@@ -135,18 +134,18 @@ function renderFiveMinTable() {
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
-  // ✅ sort newest first
+  // Newest first
   const sorted = [...alerts5m].sort((a, b) => {
     const ta = Date.parse(a.ReceivedAt || a.Time || 0);
     const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta; // descending
+    return tb - ta;
   });
 
   sorted.forEach(a => {
     const row = document.createElement('tr');
-    const p = priceData[a.Ticker] || {};
+    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
 
-    // Time column
+    // Time
     let td = document.createElement('td');
     td.textContent = formatTimeToCST(a.Time);
     row.appendChild(td);
@@ -156,11 +155,11 @@ function renderFiveMinTable() {
     td.textContent = a.Ticker || '';
     row.appendChild(td);
 
-    // Alert
+    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_5m || a.Alert || '';
     td.textContent = alertVal;
-    if ((alertVal || '').toLowerCase() === 'buy') td.classList.add('signal-buy');
+    if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
@@ -169,19 +168,17 @@ function renderFiveMinTable() {
     td.textContent = fmt2(toNum(p.Price));
     row.appendChild(td);
 
-    // Metrics…
+    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
     appendWithFlash(isBuy ? buyTbody : sellTbody, row);
-
   });
 }
 
-
-/* 15m: header is Time, Ticker, Price, Alert, … */
+/* 15m: header is Time, Ticker, Alert, Price, MA20(15m), VWAP(15m), DayMid */
 function renderFifteenMinTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy15 tbody');
   const sellTbody = document.querySelector('#scannerTableSell15 tbody');
@@ -193,11 +190,11 @@ function renderFifteenMinTable() {
   const sorted = [...alerts15m].sort((a, b) => {
     const ta = Date.parse(a.ReceivedAt || a.Time || 0);
     const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta; // newest first
+    return tb - ta;
   });
 
   sorted.forEach(a => {
-    const p = priceData[a.Ticker] || {};
+    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
     const row = document.createElement('tr');
 
     // Time
@@ -230,13 +227,10 @@ function renderFifteenMinTable() {
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
     appendWithFlash(isBuy ? buyTbody : sellTbody, row);
-
   });
 }
 
-
-
-/* 1h: header is Time, Ticker, Price, Alert, … */
+/* 1h: header is Time, Ticker, Alert, Price, MA20(1h), VWAP(1h), DayMid */
 function renderOneHrTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy1h tbody');
   const sellTbody = document.querySelector('#scannerTableSell1h tbody');
@@ -248,11 +242,11 @@ function renderOneHrTable() {
   const sorted = [...alerts1h].sort((a, b) => {
     const ta = Date.parse(a.ReceivedAt || a.Time || 0);
     const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta; // newest first
+    return tb - ta;
   });
 
   sorted.forEach(a => {
-    const p = priceData[a.Ticker] || {};
+    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
     const row = document.createElement('tr');
 
     // Time
@@ -285,11 +279,8 @@ function renderOneHrTable() {
 
     const isBuy = (alertVal || '').toLowerCase() === 'buy';
     appendWithFlash(isBuy ? buyTbody : sellTbody, row);
-
   });
 }
-
-
 
 /* ========= Socket wiring ========= */
 socket.on('alertsUpdate:AI_5m', rows => {

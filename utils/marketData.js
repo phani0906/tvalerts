@@ -1,18 +1,16 @@
 // utils/marketData.js
-// Computes MA20 + session VWAP (5m) for tickers present in alerts.json
-// Session VWAP: sum(typicalPrice * volume) / sum(volume) for today's session
-// typicalPrice = (high + low + close) / 3
+// Emits priceUpdate for all tickers seen in alerts_5m/15m/1h.json.
+// Computes MA20 (5m/15m/1h), session VWAP (per TF), and DayMid = (prevDayHigh+prevDayLow)/2.
 
 const fs = require('fs');
 const path = require('path');
 const yahooFinance = require('yahoo-finance2').default;
 
-// Optional: silence Yahoo survey banner
 yahooFinance.suppressNotices?.(['yahooSurvey']);
 
-// -------------------- small helpers --------------------
+// ---------- small helpers ----------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
-const num = v => (isNum(v) ? v : NaN);
+const num   = v => (isNum(v) ? v : NaN);
 
 function sma(values, length = 20) {
   const last = values.slice(-length);
@@ -22,21 +20,20 @@ function sma(values, length = 20) {
   return sum / length;
 }
 
-// Build a local "day key" using the exchange gmtoffset (seconds)
+// Use exchange gmtoffset to group bars by their local "day"
 function dayKeyWithOffset(dateObj, gmtoffsetSec) {
   if (!(dateObj instanceof Date)) return null;
   const epochSec = Math.floor(dateObj.getTime() / 1000);
-  const shifted = new Date((epochSec + (gmtoffsetSec || 0)) * 1000);
+  const shifted  = new Date((epochSec + (gmtoffsetSec || 0)) * 1000);
   const y = shifted.getUTCFullYear();
   const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
   const d = String(shifted.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
-// Compute session-only VWAP from bars using typical price
+// Session VWAP from bars using typical price
 function sessionVWAP(bars, gmtoffsetSec) {
   if (!Array.isArray(bars) || bars.length === 0) return null;
-
   const lastBar = bars[bars.length - 1];
   const lastKey = dayKeyWithOffset(lastBar.date, gmtoffsetSec);
   if (!lastKey) return null;
@@ -44,34 +41,27 @@ function sessionVWAP(bars, gmtoffsetSec) {
   let pv = 0, vol = 0;
   for (const b of bars) {
     const key = dayKeyWithOffset(b.date, gmtoffsetSec);
-    if (key !== lastKey) continue; // only bars from today's session
+    if (key !== lastKey) continue;
 
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
-
-    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
-               isNum(c) ? c : NaN;
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 : (isNum(c) ? c : NaN);
     if (!isNum(tp)) continue;
 
-    pv += tp * v;
+    pv  += tp * v;
     vol += v;
   }
   if (vol <= 0) return null;
   return pv / vol;
 }
 
-// -------------------- caching --------------------
-/**
- * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
- * key: '5m' | '15m' | '1h'
- */
+// ---------- caching / fetch ----------
 const cache = {};
-const TTL = { '5m': 60_000, '15m': 120_000, '1h': 300_000 }; // 1m / 2m / 5m
-const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
-const INTERVAL = { '5m': '5m', '15m': '15m', '1h': '1h' };
+const TTL         = { '5m': 60_000, '15m': 120_000, '1h': 300_000 };
+const LOOKBACK_MS = { '5m': 5 * 86400000, '15m': 30 * 86400000, '1h': 90 * 86400000 };
+const INTERVAL    = { '5m': '5m', '15m': '15m', '1h': '1h' };
 
-// Robust intraday fetch: try UNIX seconds (period1/2), fall back to range
-async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
+async function fetchIntradaySeries(ticker, key) {
   const nowMs = Date.now();
   const c = cache[ticker]?.[key];
   if (c && (nowMs - c.ts) < TTL[key]) return c;
@@ -85,7 +75,7 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
       interval,
       period1,
       period2,
-      includePrePost: false
+      includePrePost: false,
     });
   };
   const tryRange = async () => {
@@ -93,27 +83,24 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
     return yahooFinance.chart(ticker, {
       interval,
       range,
-      includePrePost: false
+      includePrePost: false,
     });
   };
 
   let result;
-  try {
-    result = await tryUnix();
-  } catch (e) {
+  try { result = await tryUnix(); }
+  catch (e) {
     const msg = (e && (e.message || String(e))) || '';
     if (msg.includes('/period1') || msg.includes('Expected required property')) {
       result = await tryRange();
-    } else {
-      throw e;
-    }
+    } else { throw e; }
   }
 
-  const quotes = Array.isArray(result?.quotes) ? result.quotes : [];
-  const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
+  const quotes        = Array.isArray(result?.quotes) ? result.quotes : [];
+  const gmtoffsetSec  = Number(result?.meta?.gmtoffset) || 0;
 
   const closes = [];
-  const bars = [];
+  const bars   = [];
   for (const q of quotes) {
     if (isNum(q?.close)) closes.push(q.close);
     let d = q?.date instanceof Date ? q.date : null;
@@ -122,9 +109,9 @@ async function fetchIntradaySeries(ticker, key /* '5m'|'15m'|'1h' */) {
       date: d || new Date(),
       open: q?.open,
       high: q?.high,
-      low: q?.low,
-      close: q?.close,
-      volume: q?.volume
+      low:  q?.low,
+      close:q?.close,
+      volume:q?.volume,
     });
   }
 
@@ -156,143 +143,110 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
-/**
- * Previous Day Midpoint = (yesterday's daily high + low) / 2
- * Uses daily chart so we get gmtoffset and complete sessions.
- */
+// Previous **full** day midpoint = (prevHigh + prevLow) / 2
 async function fetchPrevDayMid(ticker) {
   try {
-    const res = await yahooFinance.chart(ticker, {
-      interval: '1d',
-      range: '1mo',
-      includePrePost: false
-    });
+    const res = await yahooFinance.chart(ticker, { interval: '1d', range: '5d', includePrePost: false });
     const quotes = Array.isArray(res?.quotes) ? res.quotes : [];
-    const gmtoffsetSec = Number(res?.meta?.gmtoffset) || 0;
-    if (quotes.length === 0) return 'N/A';
-
-    // Build today key (exchange-local)
-    const now = new Date();
-    const todayKey = dayKeyWithOffset(now, gmtoffsetSec);
-
-    // Find most recent completed day (not today's partial)
-    // Walk from the end until we find a bar whose key != todayKey
-    let prev = null;
-    for (let i = quotes.length - 1; i >= 0; i--) {
-      const q = quotes[i];
-      let d = q?.date instanceof Date ? q.date : null;
-      if (!d && typeof q?.timestamp === 'number') d = new Date(q.timestamp * 1000);
-      const key = d ? dayKeyWithOffset(d, gmtoffsetSec) : null;
-      if (key && key !== todayKey) { prev = q; break; }
-    }
-    // Fallback: if all are not today (e.g. after-hours), just take the last
-    if (!prev) prev = quotes[quotes.length - 1];
-
-    const h = num(prev?.high), l = num(prev?.low);
-    if (!isNum(h) || !isNum(l)) return 'N/A';
-
-    return Number(((h + l) / 2).toFixed(2));
-  } catch (err) {
-    console.error(`PrevDayMid error ${ticker}:`, err.message);
+    if (quotes.length < 2) return 'N/A';
+    const prev = quotes[quotes.length - 2];
+    const low  = num(prev?.low);
+    const high = num(prev?.high);
+    if (!isNum(low) || !isNum(high)) return 'N/A';
+    return Number(((low + high) / 2).toFixed(2));
+  } catch (e) {
+    console.error(`DayMid prev-day error ${ticker}:`, e.message);
     return 'Error';
   }
 }
 
-// -------------------- top-level fetchers --------------------
-async function fetchQuoteSummary(ticker) {
+// Quote (for real-time regular market price)
+async function fetchQuote(ticker) {
   try {
-    const quote = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
-    const Price = quote.price?.regularMarketPrice ?? 'N/A';
+    const q = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
+    const Price = q.price?.regularMarketPrice ?? 'N/A';
     return { Price };
-  } catch (err) {
-    console.error(`quoteSummary error ${ticker}:`, err.message);
+  } catch (e) {
+    console.error(`quote error ${ticker}:`, e.message);
     return { Price: 'Error' };
   }
 }
 
-async function fetchTickerData(ticker, opts = {}) {
-  const { includeExtraTF = false } = opts; // set true if you re-enable 15m/1h in UI
-
-  if (!includeExtraTF) {
-    // minimal set for your current table
-    const [summary, prevMid, ma5, vw5] = await Promise.all([
-      fetchQuoteSummary(ticker),
-      fetchPrevDayMid(ticker),
-      fetchMA20(ticker, '5m'),
-      fetchVWAP(ticker, '5m'),
-    ]);
-    return {
-      Price: summary.Price,
-      DayMid: prevMid,      // <-- now "previous day mid"
-      MA20_5m: ma5,
-      VWAP_5m: vw5,
-    };
-  }
-
-  // full set (if/when you bring the extra columns back)
-  const [summary, prevMid, ma5, vw5, ma15, vw15, mah, vwh] = await Promise.all([
-    fetchQuoteSummary(ticker),
+async function fetchTickerData(ticker) {
+  // We fetch all TF metrics so all three tables can render.
+  const [q, dayMid, ma5, vw5, ma15, vw15, ma1h, vw1h] = await Promise.all([
+    fetchQuote(ticker),
     fetchPrevDayMid(ticker),
     fetchMA20(ticker, '5m'),  fetchVWAP(ticker, '5m'),
     fetchMA20(ticker, '15m'), fetchVWAP(ticker, '15m'),
     fetchMA20(ticker, '1h'),  fetchVWAP(ticker, '1h'),
   ]);
   return {
-    Price: summary.Price,
-    DayMid: prevMid,        // <-- previous day mid
-    MA20_5m: ma5,  VWAP_5m: vw5,
+    Price: q.Price,
+    DayMid: dayMid,
+    MA20_5m:  ma5,  VWAP_5m:  vw5,
     MA20_15m: ma15, VWAP_15m: vw15,
-    MA20_1h: mah,  VWAP_1h: vwh,
+    MA20_1h:  ma1h, VWAP_1h:  vw1h,
   };
 }
 
-// -------------------- alerts loader --------------------
-function safeLoadAlerts(file) {
+// ---------- alerts loading ----------
+function safeLoad(file) {
   try {
     if (!fs.existsSync(file)) return [];
     const raw = fs.readFileSync(file, 'utf8').trim();
     if (!raw) return [];
     return JSON.parse(raw);
   } catch (e) {
-    console.error('[marketData] Invalid alerts.json:', e.message);
+    console.error('[marketData] bad JSON:', file, e.message);
     return [];
   }
 }
 
-// -------------------- updater loop --------------------
-/**
- * startMarketDataUpdater(io, { dataDir, intervalMs, includeExtraTF })
- *  - dataDir: required (server passes DATA_DIR)
- *  - intervalMs: default 5000
- *  - includeExtraTF: false by default (only 5m metrics)
- */
+// ---------- updater loop ----------
 function startMarketDataUpdater(io, opts = {}) {
-  const {
-    dataDir,
-    intervalMs = 5000,
-    includeExtraTF = false,
-  } = opts;
+  const { dataDir, intervalMs = 5000 } = opts;
+  const baseDir = dataDir || path.join(__dirname, '..', 'data');
 
-  const alertsFilePath = path.join(dataDir || path.join(__dirname, '..', 'data'), 'alerts.json');
+  const file5  = path.join(baseDir, 'alerts_5m.json');
+  const file15 = path.join(baseDir, 'alerts_15m.json');
+  const file1h = path.join(baseDir, 'alerts_1h.json');
+
+  const tickersFromAllFiles = () => {
+    const a5  = safeLoad(file5);
+    const a15 = safeLoad(file15);
+    const a1h = safeLoad(file1h);
+    const all = [...a5, ...a15, ...a1h];
+    return [...new Set(all.map(a => a.Ticker).filter(Boolean))];
+  };
+
+  const tickers = new Set(); // last seen (for logging only)
 
   setInterval(async () => {
     try {
-      const alerts = safeLoadAlerts(alertsFilePath);
-      const tickers = [...new Set(alerts.map(a => a.Ticker).filter(Boolean))];
-      if (tickers.length === 0) return;
+      const list = tickersFromAllFiles();
+      if (list.length === 0) return;
+
+      // log when set changes (helps debugging)
+      const key = list.sort().join(',');
+      const prevKey = [...tickers].sort().join(',');
+      if (key !== prevKey) {
+        tickers.clear(); list.forEach(t => tickers.add(t));
+        console.log('[marketData] tracking tickers:', key);
+      }
 
       const entries = await Promise.all(
-        tickers.map(async t => [t, await fetchTickerData(t, { includeExtraTF })])
+        list.map(async t => [t, await fetchTickerData(t)])
       );
-
       const priceUpdates = Object.fromEntries(entries);
+
       io.emit('priceUpdate', priceUpdates);
     } catch (e) {
       console.error('[marketData] updater error:', e.message);
     }
   }, intervalMs);
 
-  // small initial emit (empty) so UI wiring is live
+  // initial noop so client wiring is ready
   setTimeout(() => io.emit('priceUpdate', {}), 1000);
 }
 

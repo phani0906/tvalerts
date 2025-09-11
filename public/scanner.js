@@ -33,6 +33,32 @@ const toNum = (v) =>
 const fmt2 = (v) =>
   (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
 
+function formatTimeToCST(isoString) {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    const opts = {
+      timeZone: 'America/Chicago',
+      day: '2-digit',
+      month: 'short',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    };
+    const parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(d);
+    const day   = parts.find(p => p.type === 'day').value;
+    const mon   = parts.find(p => p.type === 'month').value;
+    const year  = parts.find(p => p.type === 'year').value;
+    const hour  = parts.find(p => p.type === 'hour').value;
+    const min   = parts.find(p => p.type === 'minute').value;
+
+    return `${day} ${mon}'${year} ${hour}:${min}`;
+  } catch {
+    return isoString;
+  }
+}
+
 /**
  * Fill a metric cell with: "<metric> (+/-diff)" and add near-zero blinking border
  */
@@ -108,7 +134,7 @@ function renderFiveMinTable() {
     const row = document.createElement('tr');
 
     // Time
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
     // Ticker
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
     // Alert (before Price)
@@ -144,7 +170,7 @@ function renderFifteenMinTable() {
     const row = document.createElement('tr');
 
     // header order: Time, Ticker, Alert, Price, MA20(15m), VWAP(15m), DayMid
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
     td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
 
     // Alert BEFORE Price
@@ -182,7 +208,7 @@ function renderOneHrTable() {
     const row = document.createElement('tr');
 
     // header order: Time, Ticker, Alert, Price, MA20(1h), VWAP(1h), DayMid
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTimeToCST(a.Time);    row.appendChild(td);
     td = document.createElement('td'); td.textContent = a.Ticker || ''; row.appendChild(td);
 
     // Alert BEFORE Price

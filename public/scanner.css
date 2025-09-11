@@ -89,39 +89,36 @@ th {
 .diff-up { color: #32CD32; font-weight: 600; font-size: 0.9em; font-style: italic; }
 .diff-down { color: #FF6347; font-weight: 600; font-size: 0.9em; font-style: italic; }
 
-/* ===== Near-zero cell styling (zone-colored) ===== */
+/* ===== Near-zero cell styling (zone-colored, bold) ===== */
 td.near-zero {
   position: relative;
   box-sizing: border-box;
-  border-width: 3px;         
+  border-width: 6px;         /* double thickness */
   border-style: solid;
-  border-radius: 8px;        
+  border-radius: 12px;       /* more rounded corners */
 }
 
-/* Static frame colors by zone */
+/* Static frame colors */
 .buy-table  td.near-zero { border-color: #00FF00; }
 .sell-table td.near-zero { border-color: #FF4500; }
 
 /* Zone-colored blink animations (bold glow) */
 @keyframes greenBlink {
-  0%   { border-color: #00FF00; box-shadow: 0 0 12px rgba(0,255,0,0.7); }
+  0%   { border-color: #00FF00; box-shadow: 0 0 15px rgba(0,255,0,0.9); }
   50%  { border-color: transparent; box-shadow: none; }
-  100% { border-color: #00FF00; box-shadow: 0 0 12px rgba(0,255,0,0.7); }
+  100% { border-color: #00FF00; box-shadow: 0 0 15px rgba(0,255,0,0.9); }
 }
 @keyframes redBlink {
-  0%   { border-color: #FF4500; box-shadow: 0 0 12px rgba(255,69,0,0.7); }
+  0%   { border-color: #FF4500; box-shadow: 0 0 15px rgba(255,69,0,0.9); }
   50%  { border-color: transparent; box-shadow: none; }
-  100% { border-color: #FF4500; box-shadow: 0 0 12px rgba(255,69,0,0.7); }
+  100% { border-color: #FF4500; box-shadow: 0 0 15px rgba(255,69,0,0.9); }
 }
 
-/* Apply blink by zone */
 .buy-table  td.near-zero.blink { animation: greenBlink 1.6s ease-in-out infinite; }
 .sell-table td.near-zero.blink { animation: redBlink 1.6s ease-in-out infinite; }
 
-/* Pause on hover */
 td.near-zero.blink:hover { animation-play-state: paused; }
 
-/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .buy-table  td.near-zero.blink,
   .sell-table td.near-zero.blink {

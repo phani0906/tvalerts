@@ -8,10 +8,12 @@ let priceData = {};
    Configurable tolerances
    ========================= */
 const TOLERANCE = {
-  ma20_5m: 0.50,   // highlight if |Price - MA20(5m)| <= $0.50
-  vwap_5m: 0.50,   // highlight if |Price - VWAP(5m)| <= $0.50
-  daymid: 1.00    // highlight if |Price - DayMid| <= $1.00
+  ma20_5m: 0.50,  // |Price - MA20(5m)| <= $0.50
+  vwap_5m: 0.50,  // |Price - VWAP(5m)| <= $0.50
+  daymid:  1.00   // |Price - DayMid|   <= $1.00
 };
+// (Optional) tweak from console: window.TOLERANCE = TOLERANCE;
+window.TOLERANCE = TOLERANCE;
 
 /* =========================
    Helpers
@@ -52,23 +54,35 @@ function fillMetricCell(td, metricVal, price, tolerance) {
   td.appendChild(gap);
   td.appendChild(wrap);
 
-  if (tolerance !== null && tolerance !== undefined && Math.abs(diff) <= tolerance) {
+  if (tolerance != null && Math.abs(diff) <= tolerance) {
     td.classList.add('near-zero', 'blink');
   }
+}
+
+/* Normalize incoming alert rows so we can always read `row.AI_5m` */
+function normalizeRow(row) {
+  const r = { ...row };
+  // Many server payloads now have `Alert` instead of `AI_5m`
+  if (!r.AI_5m && r.Alert) r.AI_5m = r.Alert;
+  return r;
 }
 
 /* =========================
    Main render (5m alerts only)
    ========================= */
 function renderTable() {
-  const buyTbody = document.querySelector('#scannerTableBuy tbody');
+  const buyTbody  = document.querySelector('#scannerTableBuy tbody');
   const sellTbody = document.querySelector('#scannerTableSell tbody');
+
+  if (!buyTbody || !sellTbody) return;
 
   buyTbody.innerHTML = '';
   sellTbody.innerHTML = '';
 
   // Only rows with a 5m signal
-  const rows = (alerts || []).filter(a => a.AI_5m);
+  const rows = (alerts || [])
+    .map(normalizeRow)
+    .filter(a => a.AI_5m); // only show rows that actually have a 5m signal
 
   rows.forEach(a => {
     const row = document.createElement('tr');
@@ -84,19 +98,17 @@ function renderTable() {
     td.textContent = a.Ticker || '';
     row.appendChild(td);
 
-    // 3 Alert (5m only)
-    td = document.createElement('td');
-    td.textContent = a.AI_5m || '';
-    if (td.textContent === 'Buy') td.classList.add('signal-buy');
-    else if (td.textContent === 'Sell') td.classList.add('signal-sell');
-    row.appendChild(td);
-
-    // 2 Price
+    // 2 Price (keep look & feel: Price next to Ticker)
     td = document.createElement('td');
     td.textContent = fmt2(toNum(p.Price));
     row.appendChild(td);
 
-
+    // 3 Alert (5m only)
+    td = document.createElement('td');
+    td.textContent = a.AI_5m || '';
+    if (td.textContent === 'Buy')  td.classList.add('signal-buy');
+    if (td.textContent === 'Sell') td.classList.add('signal-sell');
+    row.appendChild(td);
 
     // 4 MA20(5m) vs Price — near-zero blink if within tolerance
     td = document.createElement('td');
@@ -113,28 +125,52 @@ function renderTable() {
     fillMetricCell(td, p.DayMid, p.Price, TOLERANCE.daymid);
     row.appendChild(td);
 
-    // Place into Green or Red zone based on latest 5m signal
-    if (a.AI_5m === 'Buy') buyTbody.appendChild(row);
-    else sellTbody.appendChild(row);
+    // Place into Green or Red zone based on the 5m signal
+    const isBuy = (a.AI_5m || '').toLowerCase() === 'buy';
+    if (isBuy) buyTbody.appendChild(row);
+    else       sellTbody.appendChild(row);
   });
 }
 
 /* =========================
    Socket listeners
    ========================= */
-// Only handle AI_5m stream
-socket.on('alertsUpdate:AI_5m', rows => {
-  console.log('[client] received 5m alerts:', rows);
-  renderFiveMinTable(rows);   // you define this
+
+// New per-timeframe stream from server (best)
+socket.on('alertsUpdate:AI_5m', (rows) => {
+  alerts = Array.isArray(rows) ? rows : [];
+  renderTable();
 });
 
-// Optional: still listen to all, if you want
-// socket.on('alertsUpdate', payload => {
-//   console.log('generic alertsUpdate', payload);
-// });
+// Back-compat: if server ever emits generic event with mixed timeframes
+socket.on('alertsUpdate', (rows) => {
+  if (!Array.isArray(rows)) return;
+  // Try to pull 5m rows whether they come as AI_5m or Timeframe === 'AI_5m'
+  const only5m = rows
+    .map(normalizeRow)
+    .filter(r => r.Timeframe === 'AI_5m' || r.AI_5m);
+  if (only5m.length) {
+    alerts = only5m;
+    renderTable();
+  }
+});
 
-
+// Live price updates
 socket.on('priceUpdate', data => {
   priceData = data || {};
   renderTable();
 });
+
+/* =========================
+   Initial load (show existing file immediately)
+   ========================= */
+(async function initialLoad() {
+  try {
+    const res = await fetch('/alerts/5m', { cache: 'no-store' });
+    const data = await res.json();
+    alerts = Array.isArray(data) ? data : [];
+    renderTable();
+  } catch (e) {
+    console.warn('Failed to load /alerts/5m:', e);
+  }
+})();

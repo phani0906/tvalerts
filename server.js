@@ -97,6 +97,22 @@ app.get('/alerts', (req, res) => {
 });
 
 
+app.get('/alerts/5m', (req, res) => {
+  const file = path.join(DATA_DIR, 'alerts_5m.json');
+  fs.readFile(file, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(404).send({ error: 'No alerts_5m.json yet' });
+    }
+    try {
+      res.json(JSON.parse(data));
+    } catch (e) {
+      res.status(500).send({ error: 'Invalid JSON' });
+    }
+  });
+});
+
+
+
 // ---------- Socket.IO ----------
 io.on('connection', (socket) => {
   console.log('[socket] connected:', socket.id);

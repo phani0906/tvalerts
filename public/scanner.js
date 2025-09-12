@@ -278,25 +278,44 @@ function msUntilTopOfHour() {
 
 async function fetchQuote() {
   try {
-    const res = await fetch("https://api.quotable.io/random?tags=wisdom|happiness|success|money");
-    const data = await res.json();
-    const quote = data.content || "Stay consistent and persistent.";
-
-    const quoteEl = document.getElementById("quote-text");
-    quoteEl.textContent = quote;
-
-    // Reset animation
-    quoteEl.style.animation = "none";
-    void quoteEl.offsetWidth; // trigger reflow
-    quoteEl.style.animation = null; // reapply CSS animation
-  } catch (err) {
-    console.error("Quote fetch failed:", err);
+    const res = await fetch('/quote', { cache: 'no-store' }); // or your API
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const { text, author } = await res.json();
+    return `${text} — ${author || 'Unknown'}`;
+  } catch {
+    return 'Consistency compounds; small edges, repeated, become big wins. — Unknown';
   }
 }
 
-// First load
-fetchQuote();
-// Then refresh every 1h
-setInterval(fetchQuote, 60 * 60 * 1000);
+function setQuote(text) {
+  const el = document.getElementById('quote-text');
+  if (!el) return;
 
+  el.textContent = text;
 
+  // Adjust speed so long quotes don’t fly by too fast (clamp 16–40s)
+  const chars = text.length;
+  const duration = Math.max(16, Math.min(40, Math.round((chars + window.innerWidth / 8) / 6)));
+  el.style.setProperty('--marquee-duration', `${duration}s`);
+
+  // Restart animation (so new quote starts from the right immediately)
+  el.style.animation = 'none';
+  void el.offsetWidth; // reflow
+  el.style.animation = ''; // uses CSS-defined animation again
+}
+
+(async function bootQuoteLoop() {
+  setQuote('Loading quote…');
+  setQuote(await fetchQuote());
+
+  // Refresh the quote at the top of the hour, then hourly
+  function msUntilTopOfHour() {
+    const now = new Date();
+    return (60 - now.getMinutes()) * 60_000 - now.getSeconds() * 1000 - now.getMilliseconds();
+  }
+
+  setTimeout(async () => {
+    setQuote(await fetchQuote());
+    setInterval(async () => setQuote(await fetchQuote()), 3600_000);
+  }, Math.max(1000, msUntilTopOfHour()));
+})();

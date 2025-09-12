@@ -8,6 +8,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
+const { getQuoteCached } = require('./utils/quoteService');
+
 
 // ---- utils ----
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
@@ -120,6 +122,17 @@ app.get('/debug/price', async (req, res) => {
     res.status(500).json({ error: e.message || String(e) });
   }
 });
+
+// Priority quote snapshot for the heading box (hourly cached)
+app.get('/quote', async (_req, res) => {
+  try {
+    const q = await getQuoteCached();
+    res.json(q);
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
 
 // ================== Admin cleanup ==================
 // POST /admin/cleanup?key=ADMIN_SECRET

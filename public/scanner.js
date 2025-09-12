@@ -240,3 +240,39 @@ socket.on('priceUpdate', data => {
   renderFifteenMinTable();
   renderOneHrTable();
 })();
+
+/* ========= Motivational Quote (via server proxy) ========= */
+async function loadQuote() {
+  try {
+    const r = await fetch('/quote', { cache: 'no-store' });
+    if (!r.ok) throw new Error('quote http ' + r.status);
+    const { text, author } = await r.json();
+    const box = document.getElementById('quoteBox');
+    if (box) {
+      box.innerHTML = '';
+      const q = document.createElement('div');
+      q.textContent = text || '';
+      const a = document.createElement('small');
+      a.textContent = author ? `— ${author}` : '';
+      box.appendChild(q);
+      box.appendChild(a);
+    }
+  } catch (_e) {
+    // Optional: leave prior quote or noop
+  }
+}
+
+function msUntilTopOfHour() {
+  const now = new Date();
+  return (60 - now.getMinutes()) * 60_000 - now.getSeconds() * 1000 - now.getMilliseconds();
+}
+
+// Kick off: load immediately, then at the top of next hour, then every hour
+(async function bootQuote() {
+  await loadQuote();
+  setTimeout(() => {
+    loadQuote();
+    setInterval(loadQuote, 3600_000); // hourly
+  }, Math.max(1000, msUntilTopOfHour()));
+})();
+

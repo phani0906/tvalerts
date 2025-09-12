@@ -166,3 +166,20 @@ table th:nth-child(n+5),
 table td:nth-child(n+5) {
   min-width: 128px;         /* bump if you still see clipping */
 }
+
+/* Quote styling */
+.quote-box {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 12px 0 18px;
+  text-align: center;
+  color: #4c7df2;
+  font-style: italic;
+}
+.quote-box small {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280; /* subtle author color */
+  font-weight: 400;
+  font-style: normal;
+}

@@ -6,33 +6,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="scanner.css?v=3" />
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+      /* Narrow, targeted helper just for the pivot section (keeps overall look/feel) */
+      .pivot-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      @media (max-width: 980px) {
+        .pivot-grid { grid-template-columns: 1fr; }
+      }
+    </style>
   </head>
   <body>
     <h2>Trading View Scanner</h2>
 
-<!-- Summary — Pivot/CPR (Latest) -->
-<div class="table-container">
-  <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
-  <table id="summary5mTable">
-    <thead>
-      <tr>
-        <th>Date &amp; Time</th>
-        <th>Ticker</th>
-        <th>Pivot Relationship</th>
-        <th>Trend</th>
-        <th>Mid-point</th>
-        <th>Open</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
+    <!-- ===== Pivot/CPR (Latest) — split into 4 tables, two per row ===== -->
+    <div class="table-container">
+      <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
 
-<!-- keep your existing sections here -->
+      <div class="pivot-grid">
+        <!-- Row 1 -->
+        <div class="table-container">
+          <h3 class="table-title">📈 Bullish Continuation</h3>
+          <table id="pivotTableBullCont">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Ticker</th>
+                <th>Pivot Relationship</th>
+                <th>Trend</th>
+                <th>Mid-point</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
 
-<!-- Load pivot panel before/after scanner.js (either is fine) -->
-<script src="pivotPanel.js"></script>
+        <div class="table-container">
+          <h3 class="table-title">📉 Bearish Continuation</h3>
+          <table id="pivotTableBearCont">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Ticker</th>
+                <th>Pivot Relationship</th>
+                <th>Trend</th>
+                <th>Mid-point</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
 
+        <!-- Row 2 -->
+        <div class="table-container">
+          <h3 class="table-title">🔁 Bullish Trend Reversal</h3>
+          <table id="pivotTableBullRev">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Ticker</th>
+                <th>Pivot Relationship</th>
+                <th>Trend</th>
+                <th>Mid-point</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="table-container">
+          <h3 class="table-title">🔁 Bearish Trend Reversal</h3>
+          <table id="pivotTableBearRev">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Ticker</th>
+                <th>Pivot Relationship</th>
+                <th>Trend</th>
+                <th>Mid-point</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- ===== /Pivot/CPR ===== -->
 
     <!-- GREEN ZONE (5m) -->
     <div class="table-container buy-table">
@@ -148,8 +214,8 @@
       </table>
     </div>
 
-    <!-- Modular pivot panel logic (keeps existing JS untouched) -->
-    <script src="pivotPanel.js"></script>
+    <!-- Scripts -->
+    <script src="pivotPanel.js?v=2"></script>
     <script src="scanner.js?v=13"></script>
   </body>
 </html>

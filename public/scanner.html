@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Trading Scanner</title>
+    <title>Stocks Scanner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="scanner.css?v=3" />
+    <link rel="stylesheet" href="scanner.css?v=4" />
     <script src="/socket.io/socket.io.js"></script>
     <style>
-      /* Narrow, targeted helper just for the pivot section (keeps overall look/feel) */
+      /* Local helper for pivot layout (keeps your existing look) */
       .pivot-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -20,82 +20,166 @@
     </style>
   </head>
   <body>
-    <h2>Trading View Scanner</h2>
+    <h2>Stocks Scanner</h2>
 
-    <!-- ===== Pivot/CPR (Latest) — split into 4 tables, two per row ===== -->
-    <div class="table-container">
-      <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
+    <!-- ===== Pivot/CPR (four tables, two per row) ===== -->
+    <div class="pivot-grid">
+      <!-- Row 1 -->
+      <div class="table-container">
+        <h3 class="table-title">📈 Bullish Continuation</h3>
+        <table id="pivotTableBullCont">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Pivot Relationship</th>
+              <th>Trend</th>
+              <th>Mid-point</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- skeletons -->
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <div class="pivot-grid">
-        <!-- Row 1 -->
-        <div class="table-container">
-          <h3 class="table-title">📈 Bullish Continuation</h3>
-          <table id="pivotTableBullCont">
-            <thead>
-              <tr>
-                <th>Date &amp; Time</th>
-                <th>Ticker</th>
-                <th>Pivot Relationship</th>
-                <th>Trend</th>
-                <th>Mid-point</th>
-                <th>Open</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="table-container">
+        <h3 class="table-title">📉 Bearish Continuation</h3>
+        <table id="pivotTableBearCont">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Pivot Relationship</th>
+              <th>Trend</th>
+              <th>Mid-point</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- skeletons -->
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <div class="table-container">
-          <h3 class="table-title">📉 Bearish Continuation</h3>
-          <table id="pivotTableBearCont">
-            <thead>
-              <tr>
-                <th>Date &amp; Time</th>
-                <th>Ticker</th>
-                <th>Pivot Relationship</th>
-                <th>Trend</th>
-                <th>Mid-point</th>
-                <th>Open</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <!-- Row 2 -->
+      <div class="table-container">
+        <h3 class="table-title">🔁 Bullish Trend Reversal</h3>
+        <table id="pivotTableBullRev">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Pivot Relationship</th>
+              <th>Trend</th>
+              <th>Mid-point</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- skeletons -->
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-        <!-- Row 2 -->
-        <div class="table-container">
-          <h3 class="table-title">🔁 Bullish Trend Reversal</h3>
-          <table id="pivotTableBullRev">
-            <thead>
-              <tr>
-                <th>Date &amp; Time</th>
-                <th>Ticker</th>
-                <th>Pivot Relationship</th>
-                <th>Trend</th>
-                <th>Mid-point</th>
-                <th>Open</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <div class="table-container">
-          <h3 class="table-title">🔁 Bearish Trend Reversal</h3>
-          <table id="pivotTableBearRev">
-            <thead>
-              <tr>
-                <th>Date &amp; Time</th>
-                <th>Ticker</th>
-                <th>Pivot Relationship</th>
-                <th>Trend</th>
-                <th>Mid-point</th>
-                <th>Open</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="table-container">
+        <h3 class="table-title">🔁 Bearish Trend Reversal</h3>
+        <table id="pivotTableBearRev">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Pivot Relationship</th>
+              <th>Trend</th>
+              <th>Mid-point</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- skeletons -->
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+            <tr class="skeleton">
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-lg"></div></td>
+              <td><div class="skel skel-md"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+              <td><div class="skel skel-sm"></div></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
     <!-- ===== /Pivot/CPR ===== -->
@@ -215,7 +299,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="pivotPanel.js?v=3" defer></script>
+    <script src="pivotPanel.js?v=4" defer></script>
     <script src="scanner.js?v=13" defer></script>
   </body>
 </html>

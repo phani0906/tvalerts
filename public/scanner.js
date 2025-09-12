@@ -1,5 +1,5 @@
 // public/scanner.js
-/* global io, fetch */
+/* global io */
 
 const socket = io();
 
@@ -7,21 +7,9 @@ const socket = io();
 let alerts5m = [];
 let alerts15m = [];
 let alerts1h = [];
+let priceData = {}; // { TICKER: { Price, DayMid, MA20_5m, ... } }
 
-/**
- * priceData structure (per ticker, UPPERCASE):
- * {
- *   Price:  ###,
- *   DayMid: ###,
- *   MA20_5m: ###, VWAP_5m: ###,
- *   MA20_15m: ###, VWAP_15m: ###,
- *   MA20_1h: ###, VWAP_1h: ###,
- *   // optional per-field staleness flags (not required for rendering)
- * }
- */
-let priceData = {};
-
-/* ========= Tolerances (blink when |price - metric| <= tolerance) ========= */
+/* ========= Tolerances (gold blink when |price - metric| <= tolerance) ========= */
 const TOLERANCE = {
   // 5m
   ma20_5m: 0.50,
@@ -39,138 +27,84 @@ const TOLERANCE = {
 window.TOLERANCE = TOLERANCE;
 
 /* ========= Helpers ========= */
-const toNum = (v) =>
-  (v === null || v === undefined || v === '' || v === 'N/A') ? null : Number(v);
+const toNum = v =>
+  (v === null || v === undefined || v === '' || v === 'N/A' || v === 'Error')
+    ? null : Number(v);
 
-const fmt2 = (v) =>
+const fmt2 = v =>
   (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
 
-function appendWithFlash(tbody, row) {
-  tbody.appendChild(row);
-  row.classList.add('new-row');
-  setTimeout(() => row.classList.remove('new-row'), 1500);
-}
-
-function formatTimeToCST(isoString) {
-  if (!isoString) return '';
-  // Accept "HH:MM" fallback (TradingView alerts)
-  if (/^\d{1,2}:\d{2}$/.test(isoString)) return isoString;
-
-  try {
-    const d = new Date(isoString);
-    const opts = {
-      timeZone: 'America/Chicago',
-      day: '2-digit',
-      month: 'short',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    };
-    const parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(d);
-    const day   = parts.find(p => p.type === 'day').value;
-    const mon   = parts.find(p => p.type === 'month').value;
-    const year  = parts.find(p => p.type === 'year').value;
-    const hour  = parts.find(p => p.type === 'hour').value;
-    const min   = parts.find(p => p.type === 'minute').value;
-
-    return `${day} ${mon}'${year} ${hour}:${min}`; // e.g., 11 Sep'25 14:45
-  } catch {
-    return isoString;
-  }
-}
-
-/**
- * Fill a metric cell with: "<metric> (+/-diff)" and add near-zero blinking border
- */
+/** Fill a metric cell with "value (+/-diff)"; skip diff if either side missing */
 function fillMetricCell(td, metricVal, price, tolerance) {
-  td.classList.remove('near-zero', 'blink', 'stale');
+  td.classList.remove('near-zero','blink');
   td.textContent = '';
 
   const m = toNum(metricVal);
   const p = toNum(price);
-  if (m === null) { td.textContent = ''; return; }
+
+  // If metric is missing, show nothing
+  if (m === null) return;
+
+  // If price missing, show metric only
   if (p === null) { td.textContent = fmt2(m); return; }
 
+  // Both present → show value + diff
   const diff = p - m;
-  const diffStr = `${diff >= 0 ? '+' : ''}${fmt2(diff)}`;
-
   const base = document.createElement('span');
   base.textContent = fmt2(m);
 
   const wrap = document.createElement('span');
   wrap.className = diff >= 0 ? 'diff-up' : 'diff-down';
-  wrap.textContent = ` (${diffStr})`;
+  wrap.textContent = ` (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
   td.appendChild(base);
   td.appendChild(wrap);
 
   if (tolerance != null && Math.abs(diff) <= tolerance) {
-    td.classList.add('near-zero', 'blink');
+    td.classList.add('near-zero','blink');
   }
 }
 
-/**
- * Fill missing AI_* field from Alert when rows come from TradingView
- */
 function normalizeRow(row) {
   const r = { ...row };
+  // Backfill AI_* from Alert so the “Alert” column shows even for plain TV alerts
   if (r.Timeframe === 'AI_5m'  && !r.AI_5m  && r.Alert) r.AI_5m  = r.Alert;
   if (r.Timeframe === 'AI_15m' && !r.AI_15m && r.Alert) r.AI_15m = r.Alert;
   if (r.Timeframe === 'AI_1h'  && !r.AI_1h  && r.Alert) r.AI_1h  = r.Alert;
+  // Normalize tickers once
+  r.Ticker = String(r.Ticker || '').toUpperCase();
   return r;
 }
 
-/**
- * Keep the latest row per Ticker for a given timeframe
- */
 function dedupe(rows, timeframeKey) {
   const map = new Map();
   (rows || []).forEach(raw => {
     const r = normalizeRow(raw);
     if (r.Timeframe !== timeframeKey) return;
-    const key = (r.Ticker || '').toUpperCase();
-    const prev = map.get(key);
-    if (!prev) { map.set(key, r); return; }
+    const prev = map.get(r.Ticker);
+    if (!prev) { map.set(r.Ticker, r); return; }
     const tNew = r.ReceivedAt ? Date.parse(r.ReceivedAt) : 0;
     const tOld = prev.ReceivedAt ? Date.parse(prev.ReceivedAt) : 0;
-    if (tNew >= tOld) map.set(key, r);
+    if (tNew >= tOld) map.set(r.Ticker, r);
   });
   return Array.from(map.values());
 }
 
 /* ========= Renderers ========= */
-/* 5m: header is Time, Ticker, Alert, Price, MA20(5m), VWAP(5m), DayMid */
 function renderFiveMinTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy tbody');
   const sellTbody = document.querySelector('#scannerTableSell tbody');
   if (!buyTbody || !sellTbody) return;
+  buyTbody.innerHTML = ''; sellTbody.innerHTML = '';
 
-  buyTbody.innerHTML = '';
-  sellTbody.innerHTML = '';
-
-  // Newest first
-  const sorted = [...alerts5m].sort((a, b) => {
-    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
-    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta;
-  });
-
-  sorted.forEach(a => {
+  alerts5m.forEach(a => {
+    const tkr = a.Ticker;
+    const p = priceData[tkr] || {};
     const row = document.createElement('tr');
-    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = formatTimeToCST(a.Time);
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
 
-    // Ticker
-    td = document.createElement('td');
-    td.textContent = a.Ticker || '';
-    row.appendChild(td);
-
-    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_5m || a.Alert || '';
     td.textContent = alertVal;
@@ -178,51 +112,30 @@ function renderFiveMinTable() {
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // Metrics
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.MA20_5m, p.Price, TOLERANCE.ma20_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_5m, p.Price, TOLERANCE.vwap_5m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_5m); row.appendChild(td);
 
-    const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+    ((alertVal || '').toLowerCase() === 'buy' ? buyTbody : sellTbody).appendChild(row);
   });
 }
 
-/* 15m: header is Time, Ticker, Alert, Price, MA20(15m), VWAP(15m), DayMid */
 function renderFifteenMinTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy15 tbody');
   const sellTbody = document.querySelector('#scannerTableSell15 tbody');
   if (!buyTbody || !sellTbody) return;
+  buyTbody.innerHTML = ''; sellTbody.innerHTML = '';
 
-  buyTbody.innerHTML = '';
-  sellTbody.innerHTML = '';
-
-  const sorted = [...alerts15m].sort((a, b) => {
-    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
-    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta;
-  });
-
-  sorted.forEach(a => {
-    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
+  alerts15m.forEach(a => {
+    const tkr = a.Ticker;
+    const p = priceData[tkr] || {};
     const row = document.createElement('tr');
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = formatTimeToCST(a.Time);
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
-    // Ticker
-    td = document.createElement('td');
-    td.textContent = a.Ticker || '';
-    row.appendChild(td);
-
-    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_15m || a.Alert || '';
     td.textContent = alertVal;
@@ -230,51 +143,29 @@ function renderFifteenMinTable() {
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.DayMid,     p.Price, TOLERANCE.daymid_15m); row.appendChild(td);
 
-    const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+    ((alertVal || '').toLowerCase() === 'buy' ? buyTbody : sellTbody).appendChild(row);
   });
 }
 
-/* 1h: header is Time, Ticker, Alert, Price, MA20(1h), VWAP(1h), DayMid */
 function renderOneHrTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy1h tbody');
   const sellTbody = document.querySelector('#scannerTableSell1h tbody');
   if (!buyTbody || !sellTbody) return;
+  buyTbody.innerHTML = ''; sellTbody.innerHTML = '';
 
-  buyTbody.innerHTML = '';
-  sellTbody.innerHTML = '';
-
-  const sorted = [...alerts1h].sort((a, b) => {
-    const ta = Date.parse(a.ReceivedAt || a. Time || 0);
-    const tb = Date.parse(b.ReceivedAt || b.Time || 0);
-    return tb - ta;
-  });
-
-  sorted.forEach(a => {
-    const p = priceData[(a.Ticker || '').toUpperCase()] || {};
+  alerts1h.forEach(a => {
+    const tkr = a.Ticker;
+    const p = priceData[tkr] || {};
     const row = document.createElement('tr');
 
-    // Time
-    let td = document.createElement('td');
-    td.textContent = formatTimeToCST(a.Time);
-    row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
-    // Ticker
-    td = document.createElement('td');
-    td.textContent = a.Ticker || '';
-    row.appendChild(td);
-
-    // Alert (before Price)
     td = document.createElement('td');
     const alertVal = a.AI_1h || a.Alert || '';
     td.textContent = alertVal;
@@ -282,23 +173,15 @@ function renderOneHrTable() {
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
 
-    // Price
-    td = document.createElement('td');
-    td.textContent = fmt2(toNum(p.Price));
-    row.appendChild(td);
-
-    // Metrics
     td = document.createElement('td'); fillMetricCell(td, p.MA20_1h, p.Price, TOLERANCE.ma20_1h); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_1h, p.Price, TOLERANCE.vwap_1h); row.appendChild(td);
-    td = document.createElement('td'); fillMetricCell(td, p.DayMid,   p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
+    td = document.createElement('td'); fillMetricCell(td, p.DayMid,  p.Price, TOLERANCE.daymid_1h); row.appendChild(td);
 
-    const isBuy = (alertVal || '').toLowerCase() === 'buy';
-    appendWithFlash(isBuy ? buyTbody : sellTbody, row);
+    ((alertVal || '').toLowerCase() === 'buy' ? buyTbody : sellTbody).appendChild(row);
   });
 }
 
 /* ========= Socket wiring ========= */
-// Alerts from server (files → sockets)
 socket.on('alertsUpdate:AI_5m', rows => {
   alerts5m = dedupe(Array.isArray(rows) ? rows : [], 'AI_5m');
   renderFiveMinTable();
@@ -312,55 +195,11 @@ socket.on('alertsUpdate:AI_1h', rows => {
   renderOneHrTable();
 });
 
-/**
- * Price/MA20/VWAP/DayMid updates
- * Supports:
- *  A) Incremental single update payload:
- *     { ticker, timeframe, price, ma20, vwap, dayMid, stale }
- *  B) Legacy bulk shape: { AMD:{...}, NVDA:{...} }  (we normalize to (A))
- */
 socket.on('priceUpdate', data => {
-  if (!data) return;
-
-  // Case B: legacy bulk map
-  if (!('ticker' in data) && typeof data === 'object') {
-    const out = {};
-    Object.entries(data).forEach(([k, v]) => {
-      out[String(k).toUpperCase()] = v || {};
-    });
-    priceData = out;
-    renderFiveMinTable();
-    renderFifteenMinTable();
-    renderOneHrTable();
-    return;
-  }
-
-  // Case A: incremental single payload
-  const ticker = String(data.ticker || '').toUpperCase();
-  if (!ticker) return;
-
-  const tf = String(data.timeframe || '').toLowerCase(); // '5m' | '15m' | '1h'
-  const price = toNum(data.price);
-  const ma20  = toNum(data.ma20);
-  const vwap  = toNum(data.vwap);
-  const dayMid = toNum(data.dayMid);
-
-  const row = priceData[ticker] || {};
-  if (price !== null) row.Price = price;
-  if (dayMid !== null) row.DayMid = dayMid;
-
-  if (tf === '5m') {
-    if (ma20 !== null) row.MA20_5m = ma20;
-    if (vwap !== null) row.VWAP_5m = vwap;
-  } else if (tf === '15m') {
-    if (ma20 !== null) row.MA20_15m = ma20;
-    if (vwap !== null) row.VWAP_15m = vwap;
-  } else if (tf === '1h' || tf === '60m') {
-    if (ma20 !== null) row.MA20_1h = ma20;
-    if (vwap !== null) row.VWAP_1h = vwap;
-  }
-
-  priceData[ticker] = row;
+  // Normalize keys once so lookups always match
+  const out = {};
+  Object.entries(data || {}).forEach(([k, v]) => { out[String(k).toUpperCase()] = v; });
+  priceData = out;
 
   renderFiveMinTable();
   renderFifteenMinTable();
@@ -372,23 +211,17 @@ socket.on('priceUpdate', data => {
   try {
     const r5 = await fetch('/alerts/5m', { cache: 'no-store' });
     alerts5m = dedupe(await r5.json(), 'AI_5m');
-  } catch (e) {
-    console.warn('Failed /alerts/5m', e);
-  }
+  } catch (e) { console.warn('Failed /alerts/5m', e); }
 
   try {
     const r15 = await fetch('/alerts/15m', { cache: 'no-store' });
     alerts15m = dedupe(await r15.json(), 'AI_15m');
-  } catch (e) {
-    console.warn('Failed /alerts/15m', e);
-  }
+  } catch (e) { console.warn('Failed /alerts/15m', e); }
 
   try {
     const r1h = await fetch('/alerts/1h', { cache: 'no-store' });
     alerts1h = dedupe(await r1h.json(), 'AI_1h');
-  } catch (e) {
-    console.warn('Failed /alerts/1h', e);
-  }
+  } catch (e) { console.warn('Failed /alerts/1h', e); }
 
   renderFiveMinTable();
   renderFifteenMinTable();

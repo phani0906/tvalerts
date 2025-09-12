@@ -244,3 +244,18 @@ table td:nth-child(n+5) {
   0%   { transform: translateX(100%); }   /* start off the right */
   100% { transform: translateX(-100%); }  /* end off the left  */
 }
+
+/* remove stray list markers inside table containers (prevents yellow dots) */
+.table-container ul,
+.table-container li {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* if any tiny placeholder lines were left, hide them */
+.table-container .note,
+.table-container .placeholder,
+.table-container .skeleton {
+  display: none !important;
+}

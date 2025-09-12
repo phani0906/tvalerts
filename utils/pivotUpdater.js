@@ -11,6 +11,8 @@ const yahooFinance = require('yahoo-finance2').default;
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num   = v => (isNum(v) ? v : NaN);
 
+let _latestPivotRows = [];
+
 // ---------- ticker resolution ----------
 function safeJson(file) {
   try {
@@ -210,6 +212,7 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
   const emit = async () => {
     try {
       const rows = await buildRows(tickers, relTol, trendTol);
+      _latestPivotRows = rows;                 // <-- cache latest
       io.emit('pivotUpdate', rows);
     } catch (e) {
       console.warn('[pivot] update error:', e.message || e);
@@ -219,4 +222,4 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
   setInterval(emit, intervalMs);
 }
 
-module.exports = { startPivotUpdater };
+module.exports = { startPivotUpdater, getPivotSnapshot: () => _latestPivotRows };

@@ -13,7 +13,7 @@ const bodyParser = require('body-parser');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 const { initAlertHandler }   = require('./utils/alertHandler');
 const { startMarketDataUpdater, fetchPriceOnly } = require('./utils/marketData'); // dual-cadence updater
-const { startPivotUpdater }  = require('./utils/pivotUpdater'); // <-- NEW: pivot/CPR updater
+const { startPivotUpdater, getPivotSnapshot } = require('./utils/pivotUpdater');
 
 // ================== Config ==================
 const PORT          = Number(process.env.PORT) || 2709;
@@ -59,6 +59,15 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'scanner.html'));
 });
 
+app.get('/pivot/latest', (_req, res) => {
+  try {
+    res.json(getPivotSnapshot() || []);
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({
@@ -86,13 +95,18 @@ startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: S
 // Emits: io.emit('pivotUpdate', rows) consumed by public/pivotPanel.js
 startPivotUpdater(io, {
   dataDir: DATA_DIR,
-  intervalMs: Number(process.env.PIVOT_INTERVAL_MS || 60000),
+  intervalMs: Number(process.env.PIVOT_MS || 60000),
   symbols: (process.env.PIVOT_TICKERS || 'NVDA,AMD,TSLA,AAPL,MSFT')
     .split(',')
     .map(s => s.trim().toUpperCase())
     .filter(Boolean),
   // symbolsFile: path.join(__dirname, 'config', 'pivot-tickers.txt'), // optional
 });
+
+// Slightly delay heavier streams so pivot paints first
+setTimeout(() => {
+  startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
+}, Number(process.env.MD_STAGGER_MS || 1500));
 
 // ================== Debug helper ==================
 // GET /debug/price?t=NVDA

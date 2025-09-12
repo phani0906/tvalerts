@@ -1,4 +1,3 @@
-// public/pivotPanel.js
 /* global io */
 (function () {
     const socket = io();
@@ -10,73 +9,76 @@
       BEAR_REV:  'Bearish Trend Reversal'
     };
   
-    function fmt2(v) {
-      if (v === null || v === undefined || v === '' || Number.isNaN(Number(v))) return '';
-      return Number(v).toFixed(2);
+    const hBullCont = document.querySelector('h3.table-title:has(+ table#pivotTableBullCont)');
+    const hBearCont = document.querySelector('h3.table-title:has(+ table#pivotTableBearCont)');
+    const hBullRev  = document.querySelector('h3.table-title:has(+ table#pivotTableBullRev)');
+    const hBearRev  = document.querySelector('h3.table-title:has(+ table#pivotTableBearRev)');
+  
+    function fmt2(v){ if(v==null||v==='')return ''; const n=Number(v); return Number.isNaN(n)?'':n.toFixed(2); }
+    function formatTimeToCST(iso){
+      if(!iso) return '';
+      try{
+        const d=new Date(iso);
+        const parts=new Intl.DateTimeFormat('en-US',{
+          timeZone:'America/Chicago',day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false
+        }).formatToParts(d);
+        const get=k=>parts.find(p=>p.type===k)?.value||'';
+        return `${get('day')} ${get('month')}'${get('year')} ${get('hour')}:${get('minute')}`;
+      }catch{return iso;}
     }
   
-    function formatTimeToCST(isoString) {
-      if (!isoString) return '';
-      try {
-        const d = new Date(isoString);
-        const opts = {
-          timeZone: 'America/Chicago',
-          day: '2-digit', month: 'short', year: '2-digit',
-          hour: '2-digit', minute: '2-digit', hour12: false
-        };
-        const parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(d);
-        const day   = parts.find(p => p.type === 'day').value;
-        const mon   = parts.find(p => p.type === 'month').value;
-        const year  = parts.find(p => p.type === 'year').value;
-        const hour  = parts.find(p => p.type === 'hour').value;
-        const min   = parts.find(p => p.type === 'minute').value;
-        return `${day} ${mon}'${year} ${hour}:${min}`;
-      } catch { return isoString; }
-    }
+    function renderBody(tbody, rows){
+      if(!tbody) return;
+      tbody.innerHTML='';
+      const sorted=[...(rows||[])].sort((a,b)=>a.ticker.localeCompare(b.ticker));
+      for(const r of sorted){
+        const tr=document.createElement('tr');
   
-    function renderBody(tbody, rows) {
-      if (!tbody) return;
-      tbody.innerHTML = '';
-      const sorted = [...(rows || [])].sort((a, b) => a.ticker.localeCompare(b.ticker));
-      for (const r of sorted) {
-        const tr = document.createElement('tr');
-  
-        let td = document.createElement('td');
-        td.textContent = formatTimeToCST(r.ts); tr.appendChild(td);
-  
-        td = document.createElement('td');
-        td.textContent = r.ticker || ''; tr.appendChild(td);
-  
-        td = document.createElement('td');
-        td.textContent = r.pivotRelationship || 'Unknown'; tr.appendChild(td);
-  
-        td = document.createElement('td');
-        td.textContent = r.trend || 'Developing'; tr.appendChild(td);
-  
-        td = document.createElement('td');
-        td.textContent = fmt2(r.midPoint); tr.appendChild(td);
-  
-        td = document.createElement('td');
-        td.textContent = fmt2(r.openPrice); tr.appendChild(td);
+        const add=(txt)=>{ const td=document.createElement('td'); td.textContent=txt; tr.appendChild(td); };
+        add(formatTimeToCST(r.ts));
+        add(r.ticker||'');
+        add(r.pivotRelationship||'Unknown');
+        add(r.trend||'Developing');
+        add(fmt2(r.midPoint));
+        add(fmt2(r.openPrice));
   
         tbody.appendChild(tr);
       }
     }
   
-    function onPivotUpdate(allRows) {
-      const rows = Array.isArray(allRows) ? allRows : [];
+    const lc=s=>String(s||'').toLowerCase();
+    function splitByTrend(rows){
+      return {
+        bullCont: rows.filter(r=>lc(r.trend)===lc(TREND.BULL_CONT)),
+        bearCont: rows.filter(r=>lc(r.trend)===lc(TREND.BEAR_CONT)),
+        bullRev:  rows.filter(r=>lc(r.trend)===lc(TREND.BULL_REV)),
+        bearRev:  rows.filter(r=>lc(r.trend)===lc(TREND.BEAR_REV)),
+      };
+    }
+    function setCount(el, title, n){ if(el) el.textContent = `${title} (${n})`; }
   
-      const bullCont = rows.filter(r => r.trend === TREND.BULL_CONT);
-      const bearCont = rows.filter(r => r.trend === TREND.BEAR_CONT);
-      const bullRev  = rows.filter(r => r.trend === TREND.BULL_REV);
-      const bearRev  = rows.filter(r => r.trend === TREND.BEAR_REV);
-  
+    function paint(rows){
+      const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(Array.isArray(rows)?rows:[]);
       renderBody(document.querySelector('#pivotTableBullCont tbody'), bullCont);
       renderBody(document.querySelector('#pivotTableBearCont tbody'), bearCont);
       renderBody(document.querySelector('#pivotTableBullRev tbody'),  bullRev);
       renderBody(document.querySelector('#pivotTableBearRev tbody'),  bearRev);
+      setCount(hBullCont,'📈 Bullish Continuation',bullCont.length);
+      setCount(hBearCont,'📉 Bearish Continuation',bearCont.length);
+      setCount(hBullRev, '🔁 Bullish Trend Reversal',bullRev.length);
+      setCount(hBearRev, '🔁 Bearish Trend Reversal',bearRev.length);
     }
   
-    socket.on('pivotUpdate', onPivotUpdate);
+    // Priority paint: fetch snapshot immediately
+    (async function boot(){
+      try{
+        const r=await fetch('/pivot/latest',{cache:'no-store'});
+        const rows=await r.json();
+        paint(rows);
+      }catch(e){ /* no-op; socket will fill shortly */ }
+    })();
+  
+    // Then keep it live with sockets
+    socket.on('pivotUpdate', paint);
   })();
   

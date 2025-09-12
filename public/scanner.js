@@ -276,49 +276,27 @@ function msUntilTopOfHour() {
   }, Math.max(1000, msUntilTopOfHour()));
 })();
 
-/* ========= Top scrolling quote ticker ========= */
 async function fetchQuote() {
   try {
-    const r = await fetch('/quote', { cache: 'no-store' });
-    if (!r.ok) throw new Error('quote http ' + r.status);
-    const { text, author } = await r.json();
-    return `${text} — ${author || 'Unknown'}`;
-  } catch {
-    return 'Consistency compounds; small edges, repeated, become big wins. — Unknown';
+    const res = await fetch("https://api.quotable.io/random?tags=wisdom|happiness|success|money");
+    const data = await res.json();
+    const quote = data.content || "Stay consistent and persistent.";
+
+    const quoteEl = document.getElementById("quote-text");
+    quoteEl.textContent = quote;
+
+    // Reset animation
+    quoteEl.style.animation = "none";
+    void quoteEl.offsetWidth; // trigger reflow
+    quoteEl.style.animation = null; // reapply CSS animation
+  } catch (err) {
+    console.error("Quote fetch failed:", err);
   }
 }
 
-function setQuoteTicker(text) {
-  const el = document.getElementById('quoteTickerText');
-  if (!el) return;
-
-  // Build a long seamless string (repeat with separators)
-  const seg = `  •  ${text}  `;
-  const loop = (text + seg + text + seg + text); // triple for smoothness
-  el.textContent = loop;
-
-  // Adjust speed: longer text -> longer duration. Clamp 22–55s.
-  const chars = loop.length;
-  const duration = Math.max(22, Math.min(55, Math.round(chars / 6)));
-  el.parentElement.style.setProperty('--marquee-duration', `${duration}s`);
-}
-
-function msUntilTopOfHour() {
-  const now = new Date();
-  return (60 - now.getMinutes()) * 60_000 - now.getSeconds() * 1000 - now.getMilliseconds();
-}
-
-(async function bootQuoteTicker() {
-  setQuoteTicker('Loading quote…');
-  setQuoteTicker(await fetchQuote());
-
-  // Refresh exactly at the top of the next hour, then hourly
-  setTimeout(() => {
-    (async () => {
-      setQuoteTicker(await fetchQuote());
-      setInterval(async () => setQuoteTicker(await fetchQuote()), 3600_000);
-    })();
-  }, Math.max(1000, msUntilTopOfHour()));
-})();
+// First load
+fetchQuote();
+// Then refresh every 1h
+setInterval(fetchQuote, 60 * 60 * 1000);
 
 

@@ -1,5 +1,5 @@
 // public/scanner.js
-/* global io */
+/* global io, fetch */
 
 const socket = io();
 
@@ -7,7 +7,19 @@ const socket = io();
 let alerts5m = [];
 let alerts15m = [];
 let alerts1h = [];
-let priceData = {}; // { [TICKER]: { Price, DayMid, MA20_*, VWAP_* } }
+
+/**
+ * priceData structure (per ticker, UPPERCASE):
+ * {
+ *   Price:  ###,
+ *   DayMid: ###,
+ *   MA20_5m: ###, VWAP_5m: ###,
+ *   MA20_15m: ###, VWAP_15m: ###,
+ *   MA20_1h: ###, VWAP_1h: ###,
+ *   // optional per-field staleness flags (not required for rendering)
+ * }
+ */
+let priceData = {};
 
 /* ========= Tolerances (blink when |price - metric| <= tolerance) ========= */
 const TOLERANCE = {
@@ -41,6 +53,9 @@ function appendWithFlash(tbody, row) {
 
 function formatTimeToCST(isoString) {
   if (!isoString) return '';
+  // Accept "HH:MM" fallback (TradingView alerts)
+  if (/^\d{1,2}:\d{2}$/.test(isoString)) return isoString;
+
   try {
     const d = new Date(isoString);
     const opts = {
@@ -69,7 +84,7 @@ function formatTimeToCST(isoString) {
  * Fill a metric cell with: "<metric> (+/-diff)" and add near-zero blinking border
  */
 function fillMetricCell(td, metricVal, price, tolerance) {
-  td.classList.remove('near-zero', 'blink');
+  td.classList.remove('near-zero', 'blink', 'stale');
   td.textContent = '';
 
   const m = toNum(metricVal);
@@ -240,7 +255,7 @@ function renderOneHrTable() {
   sellTbody.innerHTML = '';
 
   const sorted = [...alerts1h].sort((a, b) => {
-    const ta = Date.parse(a.ReceivedAt || a.Time || 0);
+    const ta = Date.parse(a.ReceivedAt || a. Time || 0);
     const tb = Date.parse(b.ReceivedAt || b.Time || 0);
     return tb - ta;
   });
@@ -283,6 +298,7 @@ function renderOneHrTable() {
 }
 
 /* ========= Socket wiring ========= */
+// Alerts from server (files → sockets)
 socket.on('alertsUpdate:AI_5m', rows => {
   alerts5m = dedupe(Array.isArray(rows) ? rows : [], 'AI_5m');
   renderFiveMinTable();
@@ -296,11 +312,55 @@ socket.on('alertsUpdate:AI_1h', rows => {
   renderOneHrTable();
 });
 
+/**
+ * Price/MA20/VWAP/DayMid updates
+ * Supports:
+ *  A) Incremental single update payload:
+ *     { ticker, timeframe, price, ma20, vwap, dayMid, stale }
+ *  B) Legacy bulk shape: { AMD:{...}, NVDA:{...} }  (we normalize to (A))
+ */
 socket.on('priceUpdate', data => {
-  // Normalize keys to UPPERCASE to match Ticker rendering
-  const out = {};
-  Object.entries(data || {}).forEach(([k, v]) => { out[String(k).toUpperCase()] = v; });
-  priceData = out;
+  if (!data) return;
+
+  // Case B: legacy bulk map
+  if (!('ticker' in data) && typeof data === 'object') {
+    const out = {};
+    Object.entries(data).forEach(([k, v]) => {
+      out[String(k).toUpperCase()] = v || {};
+    });
+    priceData = out;
+    renderFiveMinTable();
+    renderFifteenMinTable();
+    renderOneHrTable();
+    return;
+  }
+
+  // Case A: incremental single payload
+  const ticker = String(data.ticker || '').toUpperCase();
+  if (!ticker) return;
+
+  const tf = String(data.timeframe || '').toLowerCase(); // '5m' | '15m' | '1h'
+  const price = toNum(data.price);
+  const ma20  = toNum(data.ma20);
+  const vwap  = toNum(data.vwap);
+  const dayMid = toNum(data.dayMid);
+
+  const row = priceData[ticker] || {};
+  if (price !== null) row.Price = price;
+  if (dayMid !== null) row.DayMid = dayMid;
+
+  if (tf === '5m') {
+    if (ma20 !== null) row.MA20_5m = ma20;
+    if (vwap !== null) row.VWAP_5m = vwap;
+  } else if (tf === '15m') {
+    if (ma20 !== null) row.MA20_15m = ma20;
+    if (vwap !== null) row.VWAP_15m = vwap;
+  } else if (tf === '1h' || tf === '60m') {
+    if (ma20 !== null) row.MA20_1h = ma20;
+    if (vwap !== null) row.VWAP_1h = vwap;
+  }
+
+  priceData[ticker] = row;
 
   renderFiveMinTable();
   renderFifteenMinTable();

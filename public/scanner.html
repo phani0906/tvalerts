@@ -10,6 +10,24 @@
   <body>
     <h2>Trading View Scanner</h2>
 
+    <!-- ===== Summary (Pivot/CPR) ===== -->
+    <div class="table-container">
+      <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
+      <table id="summary5mTable">
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Ticker</th>
+            <th>Pivot Relationship</th>
+            <th>Trend</th>
+            <th>Mid-point</th>
+            <th>Open</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
     <!-- GREEN ZONE (5m) -->
     <div class="table-container buy-table">
       <h3 class="table-title buy-title">🔥 Green Zone (5mins)</h3>
@@ -58,7 +76,6 @@
             <th>Ticker</th>
             <th>Alert</th>
             <th>Price</th>
-            
             <th>MA20 (15m)</th>
             <th>VWAP (15m)</th>
             <th>DayMid</th>
@@ -78,7 +95,6 @@
             <th>Ticker</th>
             <th>Alert</th>
             <th>Price</th>
-            
             <th>MA20 (15m)</th>
             <th>VWAP (15m)</th>
             <th>DayMid</th>
@@ -98,7 +114,6 @@
             <th>Ticker</th>
             <th>Alert</th>
             <th>Price</th>
-            
             <th>MA20 (1h)</th>
             <th>VWAP (1h)</th>
             <th>DayMid</th>
@@ -118,7 +133,6 @@
             <th>Ticker</th>
             <th>Alert</th>
             <th>Price</th>
-            
             <th>MA20 (1h)</th>
             <th>VWAP (1h)</th>
             <th>DayMid</th>
@@ -128,6 +142,8 @@
       </table>
     </div>
 
+    <!-- Modular pivot panel logic (keeps existing JS untouched) -->
+    <script src="pivotPanel.js"></script>
     <script src="scanner.js?v=13"></script>
   </body>
 </html>

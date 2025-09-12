@@ -13,6 +13,7 @@ const bodyParser = require('body-parser');
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 const { initAlertHandler }   = require('./utils/alertHandler');
 const { startMarketDataUpdater, fetchPriceOnly } = require('./utils/marketData'); // dual-cadence updater
+const { startPivotUpdater }  = require('./utils/pivotUpdater'); // <-- NEW: pivot/CPR updater
 
 // ================== Config ==================
 const PORT          = Number(process.env.PORT) || 2709;
@@ -25,6 +26,10 @@ const SYMBOLS = (process.env.SYMBOLS || 'AFRM,MP,AMAT,FIVE,MU,AMD,NVDA,PLTR,HOOD
   .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 const TFS = (process.env.TFS || '5m,15m,1h')
   .split(',').map(s => s.trim()).filter(Boolean);
+
+// Pivot/CPR fixed ticker list (for the top summary table)
+const PIVOT_TICKERS = (process.env.PIVOT_TICKERS || 'NVDA,AMD,TSLA,AAPL,MSFT')
+  .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 
 // Poll cadences (fast price, slow metrics)
 const FAST_PRICE_MS  = Number(process.env.MD_FAST_MS || 5000);    // ~5s
@@ -62,7 +67,8 @@ app.get('/health', (_req, res) => {
     symbols: SYMBOLS.length,
     tfs: TFS,
     fastMs: FAST_PRICE_MS,
-    slowMs: SLOW_METRIC_MS
+    slowMs: SLOW_METRIC_MS,
+    pivotTickers: PIVOT_TICKERS // helpful to confirm what the pivot panel is tracking
   });
 });
 
@@ -74,7 +80,16 @@ app.use('/', tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR
 
 // ================== Market Data (dual cadence) ==================
 // Emits full snapshot objects on every pass (fast price, slow metrics).
-startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: 5000, slowMs: 60000 });
+startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
+
+// ================== Pivot/CPR Updater (fixed tickers) ==================
+// Emits: io.emit('pivotUpdate', rows) consumed by public/pivotPanel.js
+startPivotUpdater(io, {
+  dataDir: DATA_DIR,
+  intervalMs: Number(process.env.PIVOT_INTERVAL_MS || 60000), // 60s default
+  symbols: PIVOT_TICKERS,  // fixed set; later you can swap to symbolsFile or UI
+  // symbolsFile: path.join(__dirname, 'config', 'pivot-tickers.txt'), // optional fallback
+});
 
 // ================== Debug helper ==================
 // GET /debug/price?t=NVDA
@@ -135,5 +150,6 @@ server.listen(PORT, () => {
   console.log(`[boot] http://localhost:${PORT}  DATA_DIR=${DATA_DIR}`);
   console.log(`[boot] symbols=${SYMBOLS.join(', ')}  tfs=${TFS.join(', ')}`);
   console.log(`[boot] price every ${FAST_PRICE_MS}ms, metrics every ${SLOW_METRIC_MS}ms`);
+  console.log(`[boot] pivot tickers = ${PIVOT_TICKERS.join(', ')}`);
   if (TV_SECRET) console.log('[boot] TV webhook requires ?key=***');
 });

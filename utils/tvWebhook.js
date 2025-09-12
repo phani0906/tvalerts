@@ -51,7 +51,7 @@ module.exports = function tvWebhookRouterFactory(io, { tvSecret, dataDir }) {
     io.emit(`alertsUpdate:${Timeframe}`, next);
     io.emit('alertsUpdate', next);
 
-    console.log(`[tv] ${Timeframe} ${Ticker} ${Alert} -> ${path.basename(file)} (count=${next.length})`);
+    //console.log(`[tv] ${Timeframe} ${Ticker} ${Alert} -> ${path.basename(file)} (count=${next.length})`);
 
     res.send({ ok: true });
   });

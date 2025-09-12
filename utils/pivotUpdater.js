@@ -204,7 +204,7 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
   if (!tickers.length) {
     console.warn('[pivot] No tickers resolved. Set PIVOT_TICKERS or pass options.symbols.');
   } else {
-    console.log('[pivot] tracking tickers:', tickers.join(', '));
+    //console.log('[pivot] tracking tickers:', tickers.join(', '));
   }
   const relTol   = Number(process.env.PIVOT_REL_TOL  || 0.05); // CPR band comparison tolerance
   const trendTol = Number(process.env.TREND_TOL      || 0.05); // price-vs-CPR tolerance

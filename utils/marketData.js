@@ -141,7 +141,7 @@ async function fetchIntradaySeries(ticker, key) {
   const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
 
-  if (key === '5m') console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
+  if (key === '5m'); //console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
 
   const closes = [];
   const bars   = [];
@@ -276,7 +276,7 @@ async function runPricePass(io, dataDir) {
   }
 
   io.emit('priceUpdate', { ...currentData }); // full snapshot
-  console.log('[marketData] priceUpdate (fast):', Object.keys(currentData));
+  //console.log('[marketData] priceUpdate (fast):', Object.keys(currentData));
 }
 
 async function runMetricsPass(io, dataDir) {
@@ -301,7 +301,7 @@ async function runMetricsPass(io, dataDir) {
   }
 
   io.emit('priceUpdate', { ...currentData }); // full snapshot (with fresh metrics)
-  console.log('[marketData] metricsUpdate (slow):', Object.keys(currentData));
+  //console.log('[marketData] metricsUpdate (slow):', Object.keys(currentData));
 }
 
 /**

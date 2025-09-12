@@ -149,3 +149,20 @@ tr:hover td {
 /* Rounded corners for row edges */
 td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
 td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+/* Make the (±diff) show even with table-layout:fixed */
+.diff-up, .diff-down {
+  display: block;           /* put diff on its own line to avoid clipping */
+  white-space: normal;      /* allow wrapping inside the span */
+  overflow: visible;        /* don't clip the diff text */
+  text-overflow: clip;      /* disable ellipsis for the diff span */
+  font-size: 0.9em;         /* keep your compact look */
+  font-style: italic;
+}
+
+/* Give the metric columns a bit more room across all tables
+   (columns 5, 6, 7 == MA20, VWAP, DayMid for 5m/15m/1h layouts) */
+table th:nth-child(n+5),
+table td:nth-child(n+5) {
+  min-width: 128px;         /* bump if you still see clipping */
+}

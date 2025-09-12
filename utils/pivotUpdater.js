@@ -1,20 +1,23 @@
 // utils/pivotUpdater.js
-// Emits rows for the Pivot/CPR summary table. Ticker source priority:
-// 1) options.symbols (array)
-// 2) env PIVOT_TICKERS (CSV)
-// 3) options.symbolsFile (newline list)
-// 4) fallback: read tickers from alert files (legacy)
+// Emits rows for the Pivot/CPR summary table (socket event: 'pivotUpdate').
+// Ticker source priority:
+// 1) options.symbols (array)  2) env PIVOT_TICKERS (CSV)
+// 3) options.symbolsFile (newline list)  4) fallback: alert files
 //
-// Socket event: io.emit('pivotUpdate', rows)
+// "Pivot Relationship" uses CPR value area relationship between
+// today's CPR (computed from prev day's H/L/C) and yesterday's CPR
+// (computed from day-2 H/L/C):
+// - Higher Value, Overlapping Higher Value, Lower Value,
+//   Overlapping Lower Value, Inner Value, Outside Value, No change
 
 const path = require('path');
 const fs = require('fs');
 const yahooFinance = require('yahoo-finance2').default;
 
-// ---------- helpers ----------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
-const num = v => (isNum(v) ? v : NaN);
+const num   = v => (isNum(v) ? v : NaN);
 
+// ===== ticker resolution =====
 function safeJson(file) {
   try {
     if (!fs.existsSync(file)) return null;
@@ -27,7 +30,7 @@ function safeJson(file) {
 function safeLoadAlerts(file) {
   const obj = safeJson(file);
   if (!obj) return [];
-  if (Array.isArray(obj)) return obj;                 // v0 legacy
+  if (Array.isArray(obj)) return obj;                 // legacy
   if (obj && Array.isArray(obj.rows)) return obj.rows;
   return [];
 }
@@ -69,52 +72,74 @@ function resolveTickers({ dataDir, symbols, symbolsFile }) {
     const fromFile = loadTickersFromFile(symbolsFile);
     if (fromFile.length) return fromFile;
   }
-  // last resort: legacy behavior
-  return loadTickersFromAlerts(dataDir);
+  return loadTickersFromAlerts(dataDir); // last resort
 }
 
-// Classic floor pivot + CPR from previous day
-function computePivots(prevH, prevL, prevC) {
-  if (![prevH, prevL, prevC].every(isNum)) return null;
-  const P  = (prevH + prevL + prevC) / 3;   // pivot
-  const BC = (prevH + prevL) / 2;           // CPR bottom
-  const TC = 2 * P - BC;                    // CPR top
-  return { P, BC, TC };
+// ===== CPR / Pivot math =====
+function computeCPRFromHLC(high, low, close) {
+  if (![high, low, close].every(isNum)) return null;
+  const P  = (high + low + close) / 3; // central pivot
+  const BC = (high + low) / 2;         // bottom central
+  const TC = 2 * P - BC;               // top central
+  const width = Math.abs(TC - BC);
+  return { P, BC, TC, width };
 }
 
-function pivotRelationship(price, P, tol = 0.5) {
-  const p = num(price), pv = num(P);
-  if (!isNum(p) || !isNum(pv)) return 'Unknown';
-  const d = p - pv;
-  if (Math.abs(d) <= tol) return 'Near Pivot';
-  return d > 0 ? 'Above Pivot' : 'Below Pivot';
-}
+// tolerant comparisons
+function roughlyEq(a, b, tol) { return Math.abs(a - b) <= tol; }
+function gt(a, b, tol) { return a - b >  tol; }
+function lt(a, b, tol) { return b - a >  tol; }
+function ge(a, b, tol) { return a > b || roughlyEq(a, b, tol); }
+function le(a, b, tol) { return a < b || roughlyEq(a, b, tol); }
 
-// Simple trend: Price vs MA20(5m) if provided; fallback vs Pivot
-function trendFrom(price, ma20_5m, pivot, tol = 0.05) {
-  const p = num(price);
-  if (!isNum(p)) return 'Unknown';
-  if (isNum(ma20_5m)) {
-    const d = p - ma20_5m;
-    if (Math.abs(d) <= tol) return 'At MA20';
-    return d > 0 ? 'Up (Above MA20)' : 'Down (Below MA20)';
+// CPR value relationship between "today" and "yesterday" CPR
+function cprRelationship(today, yest, tol = 0.05) {
+  // tol default ~5 cents; override via env PIVOT_REL_TOL
+  if (!today || !yest) return 'Unknown';
+
+  // 1) No change (all nearly equal)
+  if (
+    roughlyEq(today.P,  yest.P,  tol) &&
+    roughlyEq(today.BC, yest.BC, tol) &&
+    roughlyEq(today.TC, yest.TC, tol)
+  ) return 'No change';
+
+  // 2) Higher / Lower Value (no overlap)
+  if (gt(today.BC, yest.TC, tol)) return 'Higher Value';
+  if (lt(today.TC, yest.BC, tol)) return 'Lower Value';
+
+  // overlap test
+  const overlaps = ge(today.TC, yest.BC, tol) && le(today.BC, yest.TC, tol);
+
+  // 3) Inside (today fully within yesterday)
+  if (le(today.TC, yest.TC, tol) && ge(today.BC, yest.BC, tol)) return 'Inner Value';
+
+  // 4) Outside (today fully covers yesterday)
+  if (ge(today.TC, yest.TC, tol) && le(today.BC, yest.BC, tol)) return 'Outside Value';
+
+  // 5) Overlapping Higher/Lower Value (partial overlap, shifted)
+  if (overlaps) {
+    if (gt(today.P, yest.P, tol)) return 'Overlapping Higher Value';
+    if (lt(today.P, yest.P, tol)) return 'Overlapping Lower Value';
+    return 'No change';
   }
-  const pv = num(pivot);
-  if (!isNum(pv)) return 'Unknown';
-  return p >= pv ? 'Up (>= Pivot)' : 'Down (< Pivot)';
+
+  // Fallback (shouldn’t hit often)
+  return (today.P > yest.P) ? 'Overlapping Higher Value' : 'Overlapping Lower Value';
 }
 
-// ---------- fetchers ----------
-async function fetchPrevDailyOHLC(ticker) {
+// ===== fetchers =====
+async function fetchPrev3DailyBars(ticker) {
+  // Need at least last 3 daily bars: day-2, day-1, day0 (or latest)
   const period2 = new Date();
-  const period1 = new Date(Date.now() - 21 * 24 * 3600 * 1000);
+  const period1 = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const rows = await yahooFinance.historical(ticker, { period1, period2, interval: '1d' });
-  if (!Array.isArray(rows) || rows.length < 2) return null;
-  const prev = rows[rows.length - 2];
-  const cur  = rows[rows.length - 1]; // may be today (partial)
+  if (!Array.isArray(rows) || rows.length < 3) return null;
+  const n = rows.length;
   return {
-    prevHigh: prev?.high, prevLow: prev?.low, prevClose: prev?.close,
-    curHigh: cur?.high, curLow: cur?.low, curClose: cur?.close
+    day2: rows[n - 3], // two sessions ago
+    day1: rows[n - 2], // yesterday (prev session)
+    day0: rows[n - 1], // today (may be partial during session)
   };
 }
 
@@ -130,42 +155,51 @@ async function fetchLivePriceOpen(ticker) {
   return out;
 }
 
-// If you later want to use MA20(5m) directly here, you can plumb it in;
-// for now we keep the module independent and rely on pivot fallback.
+// ===== row builder =====
+function priorDayMid(prevHigh, prevLow) {
+  if (isNum(prevHigh) && isNum(prevLow)) {
+    return Number(((prevHigh + prevLow) / 2).toFixed(2));
+  }
+  return null;
+}
 
-// ---------- row builder ----------
-async function buildRows(tickers) {
+async function buildRows(tickers, relTol) {
   const ts = new Date().toISOString();
   const rows = [];
 
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
-    const [daily, live] = await Promise.all([
-      fetchPrevDailyOHLC(t),
+    const [dailies, live] = await Promise.all([
+      fetchPrev3DailyBars(t),
       fetchLivePriceOpen(t),
     ]);
 
-    const piv = computePivots(daily?.prevHigh, daily?.prevLow, daily?.prevClose);
-    const prevMid = (isNum(daily?.prevHigh) && isNum(daily?.prevLow))
-      ? Number(((daily.prevHigh + daily.prevLow) / 2).toFixed(2))
-      : null;
+    let relationship = 'Unknown';
+    let midPoint = null;
 
-    const rel = piv ? pivotRelationship(live.price, piv.P) : 'Unknown';
-    const trn = trendFrom(live.price, /* ma20_5m */ null, piv?.P);
+    if (dailies?.day1 && dailies?.day2) {
+      // Today’s CPR = computed from day-1 (yesterday’s H/L/C)
+      const todayCpr = computeCPRFromHLC(dailies.day1.high, dailies.day1.low, dailies.day1.close);
+      // Yesterday’s CPR = computed from day-2 (prior day’s H/L/C)
+      const yestCpr  = computeCPRFromHLC(dailies.day2.high, dailies.day2.low, dailies.day2.close);
+      relationship   = cprRelationship(todayCpr, yestCpr, relTol);
+      midPoint       = priorDayMid(dailies.day1.high, dailies.day1.low);
+    }
 
     rows.push({
-      ts,                    // ISO; client formats CST
+      ts,                          // ISO; client formats CST
       ticker: t,
-      pivotRelationship: rel,
-      trend: trn,
-      midPoint: prevMid,     // previous-day midpoint
+      pivotRelationship: relationship,
+      trend: (live.price != null) ? (live.price >= (midPoint ?? live.price) ? 'Up' : 'Down') : 'Unknown',
+      midPoint,                    // previous-day midpoint (for display)
       openPrice: live.open,
     });
   }
+
   return rows;
 }
 
-// ---------- scheduler ----------
+// ===== scheduler =====
 function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, symbolsFile = null }) {
   const tickers = resolveTickers({ dataDir, symbols, symbolsFile });
   if (!tickers.length) {
@@ -174,9 +208,11 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
     console.log('[pivot] tracking tickers:', tickers.join(', '));
   }
 
+  const relTol = Number(process.env.PIVOT_REL_TOL || 0.05); // price tolerance (default 5 cents)
+
   const emit = async () => {
     try {
-      const rows = await buildRows(tickers);
+      const rows = await buildRows(tickers, relTol);
       io.emit('pivotUpdate', rows);
     } catch (e) {
       console.warn('[pivot] update error:', e.message || e);

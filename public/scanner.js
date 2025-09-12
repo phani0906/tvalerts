@@ -34,6 +34,19 @@ const toNum = v =>
 const fmt2 = v =>
   (v === null || Number.isNaN(v)) ? '' : Number(v).toFixed(2);
 
+function formatTime(str) {
+  if (!str) return '';
+  const d = new Date(str);
+  if (isNaN(d)) return str; // fallback if not parsable
+  return d.toLocaleString('en-US', {
+    day: '2-digit',
+    month: 'short',   // "Sep"
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).replace(',', ''); // "12 Sep 14:30"
+}
+
 /** Fill a metric cell with "value (+/-diff)"; skip diff if either side missing */
 function fillMetricCell(td, metricVal, price, tolerance) {
   td.classList.remove('near-zero','blink');
@@ -102,7 +115,7 @@ function renderFiveMinTable() {
     const p = priceData[tkr] || {};
     const row = document.createElement('tr');
 
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTime(a.Time); row.appendChild(td);
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
 
     td = document.createElement('td');
@@ -132,7 +145,7 @@ function renderFifteenMinTable() {
     const p = priceData[tkr] || {};
     const row = document.createElement('tr');
 
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTime(a.Time); row.appendChild(td);
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
     td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
@@ -162,7 +175,7 @@ function renderOneHrTable() {
     const p = priceData[tkr] || {};
     const row = document.createElement('tr');
 
-    let td = document.createElement('td'); td.textContent = a.Time || ''; row.appendChild(td);
+    let td = document.createElement('td'); td.textContent = formatTime(a.Time); row.appendChild(td);
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
     td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 

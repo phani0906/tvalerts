@@ -77,7 +77,6 @@ app.use('/', tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR
 startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
 
 // ================== Debug helper ==================
-// Light helper to check price quickly without touching metrics.
 // GET /debug/price?t=NVDA
 app.get('/debug/price', async (req, res) => {
   try {
@@ -109,19 +108,15 @@ app.post('/admin/cleanup', async (req, res) => {
 
     const toClear = tf ? { [tf]: files[tf] } : files;
 
-    // wipe files (write empty array)
     await Promise.all(
       Object.values(toClear).filter(Boolean).map(f => fsPromises.writeFile(f, '[]'))
     );
 
-    // notify clients to clear tables
     if (!tf || tf === 'AI_5m')  io.emit('alertsUpdate:AI_5m',  []);
     if (!tf || tf === 'AI_15m') io.emit('alertsUpdate:AI_15m', []);
     if (!tf || tf === 'AI_1h')  io.emit('alertsUpdate:AI_1h',  []);
 
-    // nudge clients; marketData updater will repopulate on next passes
-    io.emit('priceUpdate', {}); // harmless empty snapshot
-
+    io.emit('priceUpdate', {}); // harmless nudge; updater will repopulate
     return res.json({ ok: true, cleared: Object.keys(toClear) });
   } catch (e) {
     console.error('[cleanup] error:', e);

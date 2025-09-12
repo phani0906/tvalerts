@@ -58,6 +58,24 @@ function sessionVWAP(bars, gmtoffsetSec) {
   return pv / vol;
 }
 
+// Rolling VWAP fallback (last N bars)
+function rollingVWAP(bars, n = 20) {
+  if (!Array.isArray(bars) || bars.length === 0) return null;
+  const start = Math.max(0, bars.length - n);
+  let pv = 0, vol = 0;
+  for (let i = start; i < bars.length; i++) {
+    const b = bars[i];
+    const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
+    if (!isNum(v) || v <= 0) continue;
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 : (isNum(c) ? c : NaN);
+    if (!isNum(tp)) continue;
+    pv  += tp * v;
+    vol += v;
+  }
+  if (vol <= 0) return null;
+  return pv / vol;
+}
+
 // -------------------- caching for intraday --------------------
 /**
  * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
@@ -87,7 +105,11 @@ async function fetchIntradaySeries(ticker, key) {
   };
 
   const tryRange = async () => {
-    const range = key === '1h' ? '3mo' : key === '15m' ? '1mo' : '5d';
+    // tighter 5m window so we always have today’s bars
+    const range =
+      key === '5m'  ? '1d'  :
+      key === '15m' ? '1mo' :
+      /* 1h */        '3mo';
     return yahooFinance.chart(ticker, { interval, range, includePrePost: false });
   };
 
@@ -132,7 +154,6 @@ async function fetchIntradaySeries(ticker, key) {
 // -------------------- individual fetchers --------------------
 async function fetchPriceOnly(ticker) {
   try {
-    // quoteSummary is stable; we only read the price
     const q = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
     const p = q?.price?.regularMarketPrice;
     return (p != null && isNum(p)) ? Number(p.toFixed(2)) : 'N/A';
@@ -156,7 +177,9 @@ async function fetchMA20(ticker, key) {
 async function fetchVWAP(ticker, key) {
   try {
     const { bars, gmtoffsetSec } = await fetchIntradaySeries(ticker, key);
-    const v = sessionVWAP(bars, gmtoffsetSec);
+    // Prefer same-session VWAP; fallback to rolling VWAP over ~20 bars
+    let v = sessionVWAP(bars, gmtoffsetSec);
+    if (v == null) v = rollingVWAP(bars, 20);
     return (v != null && isNum(v)) ? Number(v.toFixed(2)) : 'N/A';
   } catch (err) {
     console.error(`VWAP fetch error ${ticker} [${key}]:`, err.message);
@@ -200,8 +223,26 @@ function safeLoad(file) {
 // We maintain an in-memory snapshot per ticker and emit the WHOLE object each pass.
 const currentData = {}; // { [TICKER]: { Price, DayMid, MA20_5m, VWAP_5m, MA20_15m, VWAP_15m, MA20_1h, VWAP_1h } }
 
+function assignIfNum(obj, key, val) {
+  if (isNum(val)) obj[key] = val;
+}
+
 function mergeTicker(t, patch) {
-  currentData[t] = { ...(currentData[t] || {}), ...patch };
+  const prev = currentData[t] || {};
+  const next = { ...prev };
+
+  // Only update fields when the incoming value is numeric
+  if ('Price'   in patch) assignIfNum(next, 'Price',   patch.Price);
+  if ('DayMid'  in patch) assignIfNum(next, 'DayMid',  patch.DayMid);
+
+  if ('MA20_5m'  in patch) assignIfNum(next, 'MA20_5m',  patch.MA20_5m);
+  if ('VWAP_5m'  in patch) assignIfNum(next, 'VWAP_5m',  patch.VWAP_5m);
+  if ('MA20_15m' in patch) assignIfNum(next, 'MA20_15m', patch.MA20_15m);
+  if ('VWAP_15m' in patch) assignIfNum(next, 'VWAP_15m', patch.VWAP_15m);
+  if ('MA20_1h'  in patch) assignIfNum(next, 'MA20_1h',  patch.MA20_1h);
+  if ('VWAP_1h'  in patch) assignIfNum(next, 'VWAP_1h',  patch.VWAP_1h);
+
+  currentData[t] = next;
 }
 
 function readTickersFromFiles(dataDir) {
@@ -272,5 +313,5 @@ function startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 }) 
 
 module.exports = {
   startMarketDataUpdater,
-  fetchPriceOnly,          // exported in case you also run a separate fast loop in server.js
+  fetchPriceOnly, // exposed for /debug/price in server
 };

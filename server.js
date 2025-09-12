@@ -74,7 +74,7 @@ app.use('/', tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR
 
 // ================== Market Data (dual cadence) ==================
 // Emits full snapshot objects on every pass (fast price, slow metrics).
-startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
+startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: 5000, slowMs: 60000 });
 
 // ================== Debug helper ==================
 // GET /debug/price?t=NVDA

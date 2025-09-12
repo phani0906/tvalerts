@@ -14,11 +14,10 @@ const num   = v => (isNum(v) ? v : NaN);
 
 function sma(values, length = 20) {
   const last = values.slice(-length);
-  if (last.length === 0) return null;      // tolerant to short series
-  const n = last.length;
+  if (last.length === 0) return null; // tolerant to short series
   let sum = 0;
-  for (let i = 0; i < n; i++) sum += last[i];
-  return sum / n;
+  for (let i = 0; i < last.length; i++) sum += last[i];
+  return sum / last.length;
 }
 
 function dayKeyWithOffset(dateObj, gmtoffsetSec) {
@@ -47,8 +46,7 @@ function sessionVWAP(bars, gmtoffsetSec) {
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
 
-    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
-               isNum(c) ? c : NaN;
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 : (isNum(c) ? c : NaN);
     if (!isNum(tp)) continue;
 
     pv  += tp * v;
@@ -100,17 +98,21 @@ async function fetchIntradaySeries(ticker, key) {
       interval,
       period1,
       period2,
-      includePrePost: false
+      includePrePost: key === '5m' ? true : false, // 5m benefits from pre/post for early bars
     });
   };
 
   const tryRange = async () => {
-    // tighter 5m window so we always have today’s bars
+    // 5m: keep it tight so we always have today's bars; include pre/post
     const range =
       key === '5m'  ? '1d'  :
       key === '15m' ? '1mo' :
       /* 1h */        '3mo';
-    return yahooFinance.chart(ticker, { interval, range, includePrePost: false });
+    return yahooFinance.chart(ticker, {
+      interval,
+      range,
+      includePrePost: key === '5m' ? true : false,
+    });
   };
 
   let result;
@@ -128,6 +130,11 @@ async function fetchIntradaySeries(ticker, key) {
 
   const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
+
+  // light debug: see how many 5m bars we got
+  if (key === '5m') {
+    console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
+  }
 
   const closes = [];
   const bars   = [];
@@ -220,7 +227,6 @@ function safeLoad(file) {
 }
 
 // -------------------- dual-cadence updater --------------------
-// We maintain an in-memory snapshot per ticker and emit the WHOLE object each pass.
 const currentData = {}; // { [TICKER]: { Price, DayMid, MA20_5m, VWAP_5m, MA20_15m, VWAP_15m, MA20_1h, VWAP_1h } }
 
 function assignIfNum(obj, key, val) {
@@ -231,7 +237,7 @@ function mergeTicker(t, patch) {
   const prev = currentData[t] || {};
   const next = { ...prev };
 
-  // Only update fields when the incoming value is numeric
+  // Only update fields when the incoming value is numeric (keep last-good)
   if ('Price'   in patch) assignIfNum(next, 'Price',   patch.Price);
   if ('DayMid'  in patch) assignIfNum(next, 'DayMid',  patch.DayMid);
 

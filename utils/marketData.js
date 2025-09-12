@@ -1,221 +1,276 @@
-// marketData.js
-// Robust market data fetcher with rate limiting, caching, and safe JSON handling.
+// utils/marketData.js
+// Price fast (~5s), MA20/VWAP/DayMid slow (~60s). Emits a full snapshot each time.
 
-const fetch = require("node-fetch");
+const fs = require('fs');
+const path = require('path');
+const yahooFinance = require('yahoo-finance2').default;
 
-// ---- Tunables (can be overridden with env) ----
-const MAX_CONCURRENT = parseInt(process.env.YF_MAX_CONCURRENT || "1", 10); // keep 1–2 to avoid 429s
-const MIN_MS_BETWEEN = parseInt(process.env.YF_MIN_MS || "900", 10);       // ~1 req/sec per pipeline
-const CACHE_TTL_MS = parseInt(process.env.MD_CACHE_TTL_MS || "60000", 10); // 60s
-const BACKOFF_BASE_MS = 800;
-const BACKOFF_MAX_MS = 8000;
+// Optional: silence Yahoo survey banner
+yahooFinance.suppressNotices?.(['yahooSurvey']);
 
-// Optional alt provider (leave empty if you don't have keys yet)
-const FINNHUB_KEY = process.env.FINNHUB_KEY || "";
-// const POLYGON_KEY = process.env.POLYGON_KEY || "";
-// const TWELVEDATA_KEY = process.env.TWELVEDATA_KEY || "";
+// -------------------- small helpers --------------------
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
+const num   = v => (isNum(v) ? v : NaN);
 
-// ---- Simple concurrency limiter ----
-let active = 0;
-const q = [];
-async function schedule(task) {
-  return new Promise((resolve, reject) => {
-    q.push({ task, resolve, reject });
-    pump();
-  });
+function sma(values, length = 20) {
+  const last = values.slice(-length);
+  if (last.length === 0) return null;      // tolerant to short series
+  const n = last.length;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += last[i];
+  return sum / n;
 }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-async function pump() {
-  if (active >= MAX_CONCURRENT || q.length === 0) return;
-  const { task, resolve, reject } = q.shift();
-  active++;
+
+function dayKeyWithOffset(dateObj, gmtoffsetSec) {
+  if (!(dateObj instanceof Date)) return null;
+  const epochSec = Math.floor(dateObj.getTime() / 1000);
+  const shifted  = new Date((epochSec + (gmtoffsetSec || 0)) * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Compute session-only VWAP from bars using typical price
+function sessionVWAP(bars, gmtoffsetSec) {
+  if (!Array.isArray(bars) || bars.length === 0) return null;
+
+  const lastBar = bars[bars.length - 1];
+  const lastKey = dayKeyWithOffset(lastBar.date, gmtoffsetSec);
+  if (!lastKey) return null;
+
+  let pv = 0, vol = 0;
+  for (const b of bars) {
+    const key = dayKeyWithOffset(b.date, gmtoffsetSec);
+    if (key !== lastKey) continue; // only today's session
+
+    const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
+    if (!isNum(v) || v <= 0) continue;
+
+    const tp = isNum(h) && isNum(l) && isNum(c) ? (h + l + c) / 3 :
+               isNum(c) ? c : NaN;
+    if (!isNum(tp)) continue;
+
+    pv  += tp * v;
+    vol += v;
+  }
+  if (vol <= 0) return null;
+  return pv / vol;
+}
+
+// -------------------- caching for intraday --------------------
+/**
+ * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
+ * key: '5m' | '15m' | '1h'
+ */
+const cache = {};
+const TTL         = { '5m':  60_000, '15m': 120_000, '1h': 300_000 };
+const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
+const INTERVAL    = { '5m': '5m',       '15m': '15m',       '1h': '1h' };
+
+async function fetchIntradaySeries(ticker, key) {
+  const nowMs = Date.now();
+  const c = cache[ticker]?.[key];
+  if (c && (nowMs - c.ts) < TTL[key]) return c;
+
+  const interval = INTERVAL[key];
+
+  const tryUnix = async () => {
+    const period2 = new Date();
+    const period1 = new Date(nowMs - LOOKBACK_MS[key]);
+    return yahooFinance.chart(ticker, {
+      interval,
+      period1,
+      period2,
+      includePrePost: false
+    });
+  };
+
+  const tryRange = async () => {
+    const range = key === '1h' ? '3mo' : key === '15m' ? '1mo' : '5d';
+    return yahooFinance.chart(ticker, { interval, range, includePrePost: false });
+  };
+
+  let result;
   try {
-    const res = await task();
-    // small gap to respect MIN_MS_BETWEEN
-    await sleep(MIN_MS_BETWEEN);
-    resolve(res);
+    // prefer 'range' for 5m to ensure enough bars at boot
+    result = (key === '5m') ? await tryRange() : await tryUnix();
   } catch (e) {
-    reject(e);
-  } finally {
-    active--;
-    if (q.length) pump();
-  }
-}
-
-// ---- Cache for last-good values ----
-const cache = new Map(); // key: `${sym}:${interval}` -> { t, data }
-function setCache(key, data) {
-  cache.set(key, { t: Date.now(), data });
-}
-function getCache(key) {
-  const v = cache.get(key);
-  if (!v) return null;
-  if (Date.now() - v.t > CACHE_TTL_MS) return null;
-  return v.data;
-}
-
-// ---- Safe JSON fetch with backoff ----
-async function fetchJson(url, opts = {}, attempt = 1) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; MarketDataBot/1.0; +https://example.local)",
-      "Accept": "application/json,text/plain,*/*",
-      ...(opts.headers || {})
-    }
-  });
-
-  if (!res.ok) {
-    // Read the body as text for diagnostics
-    const text = await res.text().catch(() => "");
-    // Handle rate limiting with backoff
-    if ((res.status === 429 || res.status === 503) && attempt <= 5) {
-      const wait =
-        Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * Math.pow(2, attempt - 1)) +
-        Math.floor(Math.random() * 250);
-      // eslint-disable-next-line no-console
-      console.warn(`[marketData] backoff ${res.status} ${res.statusText} — waiting ${wait}ms`);
-      await sleep(wait);
-      return fetchJson(url, opts, attempt + 1);
-    }
-    const msg = `[marketData] HTTP ${res.status} ${res.statusText} -> ${text.slice(0, 120)}`;
-    throw new Error(msg);
-  }
-
-  // If content-type isn't JSON, guard parsing
-  const ct = res.headers.get("content-type") || "";
-  const body = await res.text();
-  if (!ct.includes("application/json")) {
-    // Sometimes Yahoo returns text even on 200; try JSON parse but guard
-    try {
-      return JSON.parse(body);
-    } catch {
-      throw new Error(`[marketData] Non-JSON body: ${body.slice(0, 120)}`);
+    const msg = (e && (e.message || String(e))) || '';
+    if (msg.includes('/period1') || msg.includes('Expected required property')) {
+      result = await tryRange();
+    } else {
+      throw e;
     }
   }
+
+  const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
+  const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
+
+  const closes = [];
+  const bars   = [];
+  for (const q of quotes) {
+    if (isNum(q?.close)) closes.push(q.close);
+    let d = q?.date instanceof Date ? q.date : null;
+    if (!d && typeof q?.timestamp === 'number') d = new Date(q.timestamp * 1000);
+    bars.push({
+      date: d || new Date(),
+      open: q?.open,
+      high: q?.high,
+      low:  q?.low,
+      close:q?.close,
+      volume:q?.volume
+    });
+  }
+
+  const packed = { ts: nowMs, closes, bars, gmtoffsetSec };
+  cache[ticker] = cache[ticker] || {};
+  cache[ticker][key] = packed;
+  return packed;
+}
+
+// -------------------- individual fetchers --------------------
+async function fetchPriceOnly(ticker) {
   try {
-    return JSON.parse(body);
+    // quoteSummary is stable; we only read the price
+    const q = await yahooFinance.quoteSummary(ticker, { modules: ['price'] });
+    const p = q?.price?.regularMarketPrice;
+    return (p != null && isNum(p)) ? Number(p.toFixed(2)) : 'N/A';
   } catch (e) {
-    throw new Error(`[marketData] JSON parse failed: ${e.message} :: ${body.slice(0, 120)}`);
+    console.error(`price fetch error ${ticker}:`, e.message);
+    return 'Error';
   }
 }
 
-// ---- Yahoo chart helper (batches by symbol+interval) ----
-// interval: '5m' | '15m' | '60m' (map your 1h to 60m)
-function rangeForInterval(interval) {
-  // choose short ranges to reduce payload & rate pressure
-  if (interval === "5m") return "1d";
-  if (interval === "15m") return "5d";
-  if (interval === "60m") return "1mo";
-  return "1d";
-}
-
-async function getYahooChart(symbol, interval) {
-  const i = interval === "1h" ? "60m" : interval; // translate
-  const range = rangeForInterval(i);
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${i}&range=${range}`;
-  return schedule(() => fetchJson(url));
-}
-
-// ---- TA helpers ----
-function sma(values, len) {
-  if (!values || values.length < len) return null;
-  const slice = values.slice(-len);
-  const sum = slice.reduce((a, b) => a + b, 0);
-  return +(sum / len).toFixed(2);
-}
-function vwapFromSeries(h, l, c, v, len = 20) {
-  if (![h, l, c, v].every(arr => Array.isArray(arr) && arr.length)) return null;
-  const n = Math.min(len, c.length);
-  let pvSum = 0, volSum = 0;
-  for (let k = c.length - n; k < c.length; k++) {
-    const tp = (h[k] + l[k] + c[k]) / 3;
-    pvSum += tp * v[k];
-    volSum += v[k];
-  }
-  if (!volSum) return null;
-  return +(pvSum / volSum).toFixed(2);
-}
-
-// Placeholder for Day Mid (yesterday’s (H+L)/2) using daily bars
-async function getDayMid(symbol) {
-  // Use 1d interval over 2d range to get yesterday and today
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
-  const data = await schedule(() => fetchJson(url));
-  const res = data && data.chart && data.chart.result && data.chart.result[0];
-  if (!res) return null;
-  const h = res.indicators?.quote?.[0]?.high || [];
-  const l = res.indicators?.quote?.[0]?.low || [];
-  if (h.length < 2 || l.length < 2) return null;
-  const yHigh = h[h.length - 2];
-  const yLow = l[l.length - 2];
-  if (yHigh == null || yLow == null) return null;
-  return +(((yHigh + yLow) / 2).toFixed(2));
-}
-
-// ---- Main calc for one symbol/interval ----
-async function calcFor(symbol, tf) {
-  const cacheKey = `${symbol}:${tf}`;
-  const cached = getCache(cacheKey);
-  if (cached) return { ...cached, _cached: true };
-
+async function fetchMA20(ticker, key) {
   try {
-    const chart = await getYahooChart(symbol, tf === "1h" ? "60m" : tf);
-    const res = chart && chart.chart && chart.chart.result && chart.chart.result[0];
-    if (!res) throw new Error("Empty chart result");
-
-    const q = res.indicators?.quote?.[0] || {};
-    const c = q.close || [];
-    const h = q.high || [];
-    const l = q.low || [];
-    const v = q.volume || [];
-
-    const price = c.length ? +(+c[c.length - 1]).toFixed(2) : null;
-    const ma20 = sma(c, 20);
-    const vwap = vwapFromSeries(h, l, c, v, 20);
-    const dayMid = await getDayMid(symbol); // separate lightweight call; cached by its own limiter
-
-    const payload = { symbol, tf, price, ma20, vwap, dayMid };
-    setCache(cacheKey, payload);
-    return payload;
-  } catch (e) {
-    // Log once and return last-good values if any
-    console.warn(`${tf} fetch error ${symbol}: ${e.message}`);
-    const last = cache.get(cacheKey)?.data || null;
-    if (last) return { ...last, _stale: true };
-    return { symbol, tf, price: null, ma20: null, vwap: null, dayMid: null, _error: true };
+    const { closes } = await fetchIntradaySeries(ticker, key);
+    const avg = sma(closes, 20);
+    return (avg != null && isNum(avg)) ? Number(avg.toFixed(2)) : 'N/A';
+  } catch (err) {
+    console.error(`MA20 fetch error ${ticker} [${key}]:`, err.message);
+    return 'Error';
   }
 }
 
-// ---- Public API ----
-// symbols: string[]; tfs: like ['5m','15m','1h']
-// onUpdate: fn(row) -> emit via socket
-async function pollAndEmit({ symbols, tfs, onUpdate }) {
-  for (const tf of tfs) {
-    for (const sym of symbols) {
-      // sequential scheduling keeps us under limits
-      // eslint-disable-next-line no-await-in-loop
-      const row = await calcFor(sym, tf);
-      if (typeof onUpdate === "function") {
-        onUpdate({
-          ticker: sym,
-          timeframe: tf,
-          price: row.price,
-          ma20: row.ma20,
-          vwap: row.vwap,
-          dayMid: row.dayMid,
-          stale: !!row._stale
-        });
+async function fetchVWAP(ticker, key) {
+  try {
+    const { bars, gmtoffsetSec } = await fetchIntradaySeries(ticker, key);
+    const v = sessionVWAP(bars, gmtoffsetSec);
+    return (v != null && isNum(v)) ? Number(v.toFixed(2)) : 'N/A';
+  } catch (err) {
+    console.error(`VWAP fetch error ${ticker} [${key}]:`, err.message);
+    return 'Error';
+  }
+}
+
+// previous-day midpoint from daily bars
+async function fetchPrevDayMid(ticker) {
+  try {
+    const period2 = new Date();
+    const period1 = new Date(Date.now() - 15 * 24 * 3600 * 1000);
+    const dailyBars = await yahooFinance.historical(ticker, {
+      period1, period2, interval: '1d'
+    });
+    if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
+      const prev = dailyBars[dailyBars.length - 2]; // yesterday
+      if (isNum(prev?.high) && isNum(prev?.low)) {
+        return Number(((prev.high + prev.low) / 2).toFixed(2));
       }
     }
+    return 'N/A';
+  } catch (e) {
+    console.warn(`[marketData] fetchPrevDayMid failed ${ticker}:`, e.message);
+    return 'N/A';
   }
+}
+
+// -------------------- alerts loader --------------------
+function safeLoad(file) {
+  try {
+    if (!fs.existsSync(file)) return [];
+    const raw = fs.readFileSync(file, 'utf8').trim();
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+// -------------------- dual-cadence updater --------------------
+// We maintain an in-memory snapshot per ticker and emit the WHOLE object each pass.
+const currentData = {}; // { [TICKER]: { Price, DayMid, MA20_5m, VWAP_5m, MA20_15m, VWAP_15m, MA20_1h, VWAP_1h } }
+
+function mergeTicker(t, patch) {
+  currentData[t] = { ...(currentData[t] || {}), ...patch };
+}
+
+function readTickersFromFiles(dataDir) {
+  const f5  = path.join(dataDir, 'alerts_5m.json');
+  const f15 = path.join(dataDir, 'alerts_15m.json');
+  const f1h = path.join(dataDir, 'alerts_1h.json');
+
+  const a5  = safeLoad(f5);
+  const a15 = safeLoad(f15);
+  const a1h = safeLoad(f1h);
+
+  return [...new Set([...a5, ...a15, ...a1h].map(a => a.Ticker).filter(Boolean))];
+}
+
+async function runPricePass(io, dataDir) {
+  const tickers = readTickersFromFiles(dataDir);
+  if (tickers.length === 0) return;
+
+  for (const t of tickers) {
+    // eslint-disable-next-line no-await-in-loop
+    const Price = await fetchPriceOnly(t);
+    mergeTicker(t, { Price });
+  }
+
+  io.emit('priceUpdate', { ...currentData }); // full snapshot
+  console.log('[marketData] priceUpdate (fast):', Object.keys(currentData));
+}
+
+async function runMetricsPass(io, dataDir) {
+  const tickers = readTickersFromFiles(dataDir);
+  if (tickers.length === 0) return;
+
+  for (const t of tickers) {
+    // eslint-disable-next-line no-await-in-loop
+    const [ma5, vw5, ma15, vw15, mah, vwh, dayMid] = await Promise.all([
+      fetchMA20(t, '5m'),  fetchVWAP(t, '5m'),
+      fetchMA20(t, '15m'), fetchVWAP(t, '15m'),
+      fetchMA20(t, '1h'),  fetchVWAP(t, '1h'),
+      fetchPrevDayMid(t)
+    ]);
+
+    mergeTicker(t, {
+      DayMid: dayMid,
+      MA20_5m:  ma5,  VWAP_5m:  vw5,
+      MA20_15m: ma15, VWAP_15m: vw15,
+      MA20_1h:  mah,  VWAP_1h:  vwh,
+    });
+  }
+
+  io.emit('priceUpdate', { ...currentData }); // full snapshot (with fresh metrics)
+  console.log('[marketData] metricsUpdate (slow):', Object.keys(currentData));
+}
+
+/**
+ * startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 })
+ */
+function startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 }) {
+  // initial empty emit so UI wires up
+  setTimeout(() => io.emit('priceUpdate', {}), 500);
+
+  // Kick off both loops
+  setInterval(() => { runPricePass(io, dataDir).catch(e => console.warn('[price pass]', e.message)); }, fastMs);
+  setInterval(() => { runMetricsPass(io, dataDir).catch(e => console.warn('[metrics pass]', e.message)); }, slowMs);
+
+  // Also do one immediate metrics pass so MA/VWAP/DayMid show up without waiting a minute
+  runMetricsPass(io, dataDir).catch(() => {});
 }
 
 module.exports = {
-  pollAndEmit,
-  // expose knobs for tests/tuning
-  _internals: { fetchJson, schedule, getYahooChart, calcFor, getDayMid }
+  startMarketDataUpdater,
+  fetchPriceOnly,          // exported in case you also run a separate fast loop in server.js
 };

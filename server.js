@@ -9,10 +9,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
 
-// ---- utils (your paths) ----
+// ---- utils ----
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 const { initAlertHandler }   = require('./utils/alertHandler');
-const marketData             = require('./utils/marketData'); // exposes pollAndEmit + _internals
+const { startMarketDataUpdater, fetchPriceOnly } = require('./utils/marketData'); // dual-cadence updater
 
 // ================== Config ==================
 const PORT          = Number(process.env.PORT) || 2709;
@@ -20,15 +20,15 @@ const DATA_DIR      = process.env.DATA_DIR || path.join(__dirname, 'data');
 const TV_SECRET     = process.env.TV_SECRET || '';    // shared secret for /tv-webhook?key=
 const ADMIN_SECRET  = process.env.ADMIN_SECRET || ''; // admin key for /admin/cleanup
 
-// Symbols & timeframes (comma-separated env supported)
+// Symbols & timeframes (used only for health/debug logs)
 const SYMBOLS = (process.env.SYMBOLS || 'AFRM,MP,AMAT,FIVE,MU,AMD,NVDA,PLTR,HOOD,HIMS,MRVL,ANET')
   .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-
 const TFS = (process.env.TFS || '5m,15m,1h')
   .split(',').map(s => s.trim()).filter(Boolean);
 
-// Poll cadence (marketData has its own caching/backoff)
-const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 5000);
+// Poll cadences (fast price, slow metrics)
+const FAST_PRICE_MS  = Number(process.env.MD_FAST_MS || 5000);    // ~5s
+const SLOW_METRIC_MS = Number(process.env.MD_SLOW_MS || 60000);   // ~60s
 
 // Ensure data dir is writable
 if (!fs.existsSync(DATA_DIR)) {
@@ -56,7 +56,14 @@ app.get('/', (_req, res) => {
 
 // Health check
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, ts: new Date().toISOString(), symbols: SYMBOLS.length, tfs: TFS });
+  res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    symbols: SYMBOLS.length,
+    tfs: TFS,
+    fastMs: FAST_PRICE_MS,
+    slowMs: SLOW_METRIC_MS
+  });
 });
 
 // ================== Alerts (readers + test sender) ==================
@@ -65,73 +72,19 @@ initAlertHandler(app, io, { dataDir: DATA_DIR });
 // ================== TradingView webhook ==================
 app.use('/', tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR }));
 
-// ================== Market Data (Price/MA20/VWAP/DayMid) ==================
-// IMPORTANT: the client expects a TICKER→metrics MAP on `priceUpdate`,
-// not a single-ticker payload. We keep a process-wide snapshot and emit it.
-const priceSnapshot = {}; // { TICKER: { Price, DayMid, MA20_5m, VWAP_5m, MA20_15m, VWAP_15m, MA20_1h, VWAP_1h } }
-
-function ensureRow(ticker) {
-  if (!priceSnapshot[ticker]) {
-    priceSnapshot[ticker] = {
-      Price: null,
-      DayMid: null,
-      MA20_5m: null,  VWAP_5m: null,
-      MA20_15m: null, VWAP_15m: null,
-      MA20_1h: null,  VWAP_1h: null
-    };
-  }
-  return priceSnapshot[ticker];
-}
-
-let pollRunning = false;
-async function runPollOnce() {
-  if (pollRunning) return;
-  pollRunning = true;
-  try {
-    await marketData.pollAndEmit({
-      symbols: SYMBOLS,
-      tfs: TFS,
-      onUpdate: ({ ticker, timeframe, price, ma20, vwap, dayMid /*, stale */ }) => {
-        const T = String(ticker || '').toUpperCase();
-        const row = ensureRow(T);
-
-        if (price != null)  row.Price  = price;
-        if (dayMid != null) row.DayMid = dayMid;
-
-        if (timeframe === '5m')  { row.MA20_5m  = ma20; row.VWAP_5m  = vwap; }
-        if (timeframe === '15m') { row.MA20_15m = ma20; row.VWAP_15m = vwap; }
-        if (timeframe === '1h')  { row.MA20_1h  = ma20; row.VWAP_1h  = vwap; }
-
-        // Emit the WHOLE snapshot (what the browser expects)
-        io.emit('priceUpdate', priceSnapshot);
-      }
-    });
-  } catch (e) {
-    console.warn('[marketData] poll error:', e.message || e);
-  } finally {
-    pollRunning = false;
-  }
-}
-
-function schedulePolling() {
-  runPollOnce().finally(() => setTimeout(schedulePolling, POLL_INTERVAL_MS));
-}
-schedulePolling();
+// ================== Market Data (dual cadence) ==================
+// Emits full snapshot objects on every pass (fast price, slow metrics).
+startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
 
 // ================== Debug helper ==================
-// GET /debug/fetch?t=NVDA&tf=15m
-app.get('/debug/fetch', async (req, res) => {
+// Light helper to check price quickly without touching metrics.
+// GET /debug/price?t=NVDA
+app.get('/debug/price', async (req, res) => {
   try {
     const t = String(req.query.t || '').trim().toUpperCase();
-    const tf = String(req.query.tf || '15m').trim();
-    if (!t) return res.status(400).json({ error: 'Pass ?t=TICKER [&tf=5m|15m|1h]' });
-
-    const calcFor = marketData._internals?.calcFor;
-    if (typeof calcFor !== 'function') {
-      return res.status(500).json({ error: 'calcFor not available' });
-    }
-    const row = await calcFor(t, tf);
-    res.json(row);
+    if (!t) return res.status(400).json({ error: 'Pass ?t=TICKER' });
+    const price = await fetchPriceOnly(t);
+    res.json({ ticker: t, price });
   } catch (e) {
     res.status(500).json({ error: e.message || String(e) });
   }
@@ -166,9 +119,8 @@ app.post('/admin/cleanup', async (req, res) => {
     if (!tf || tf === 'AI_15m') io.emit('alertsUpdate:AI_15m', []);
     if (!tf || tf === 'AI_1h')  io.emit('alertsUpdate:AI_1h',  []);
 
-    // Optionally clear price snapshot too (so UI blanks until next poll)
-    // Object.keys(priceSnapshot).forEach(k => delete priceSnapshot[k]);
-    io.emit('priceUpdate', priceSnapshot);
+    // nudge clients; marketData updater will repopulate on next passes
+    io.emit('priceUpdate', {}); // harmless empty snapshot
 
     return res.json({ ok: true, cleared: Object.keys(toClear) });
   } catch (e) {
@@ -186,6 +138,7 @@ io.on('connection', s => {
 // ================== Start ==================
 server.listen(PORT, () => {
   console.log(`[boot] http://localhost:${PORT}  DATA_DIR=${DATA_DIR}`);
-  console.log(`[boot] symbols=${SYMBOLS.join(', ')}  tfs=${TFS.join(', ')}  poll=${POLL_INTERVAL_MS}ms`);
+  console.log(`[boot] symbols=${SYMBOLS.join(', ')}  tfs=${TFS.join(', ')}`);
+  console.log(`[boot] price every ${FAST_PRICE_MS}ms, metrics every ${SLOW_METRIC_MS}ms`);
   if (TV_SECRET) console.log('[boot] TV webhook requires ?key=***');
 });

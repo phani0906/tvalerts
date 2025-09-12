@@ -10,23 +10,29 @@
   <body>
     <h2>Trading View Scanner</h2>
 
-    <!-- ===== Summary (Pivot/CPR) ===== -->
-    <div class="table-container">
-      <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
-      <table id="summary5mTable">
-        <thead>
-          <tr>
-            <th>Date &amp; Time</th>
-            <th>Ticker</th>
-            <th>Pivot Relationship</th>
-            <th>Trend</th>
-            <th>Mid-point</th>
-            <th>Open</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+<!-- Summary — Pivot/CPR (Latest) -->
+<div class="table-container">
+  <h3 class="table-title">Summary — Pivot/CPR (Latest)</h3>
+  <table id="summary5mTable">
+    <thead>
+      <tr>
+        <th>Date &amp; Time</th>
+        <th>Ticker</th>
+        <th>Pivot Relationship</th>
+        <th>Trend</th>
+        <th>Mid-point</th>
+        <th>Open</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- keep your existing sections here -->
+
+<!-- Load pivot panel before/after scanner.js (either is fine) -->
+<script src="pivotPanel.js"></script>
+
 
     <!-- GREEN ZONE (5m) -->
     <div class="table-container buy-table">

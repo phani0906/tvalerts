@@ -86,9 +86,12 @@ startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: S
 // Emits: io.emit('pivotUpdate', rows) consumed by public/pivotPanel.js
 startPivotUpdater(io, {
   dataDir: DATA_DIR,
-  intervalMs: Number(process.env.PIVOT_INTERVAL_MS || 60000), // 60s default
-  symbols: PIVOT_TICKERS,  // fixed set; later you can swap to symbolsFile or UI
-  // symbolsFile: path.join(__dirname, 'config', 'pivot-tickers.txt'), // optional fallback
+  intervalMs: Number(process.env.PIVOT_INTERVAL_MS || 60000),
+  symbols: (process.env.PIVOT_TICKERS || 'NVDA,AMD,TSLA,AAPL,MSFT')
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean),
+  // symbolsFile: path.join(__dirname, 'config', 'pivot-tickers.txt'), // optional
 });
 
 // ================== Debug helper ==================

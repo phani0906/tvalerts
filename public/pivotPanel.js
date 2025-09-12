@@ -1,14 +1,12 @@
 // public/pivotPanel.js
 /* global io */
-
 (function () {
-    const socket = io(); // separate connection; independent of scanner.js
+    const socket = io();
   
     function fmt2(v) {
       if (v === null || v === undefined || v === '' || Number.isNaN(Number(v))) return '';
       return Number(v).toFixed(2);
     }
-  
     function formatTimeToCST(isoString) {
       if (!isoString) return '';
       try {
@@ -32,35 +30,27 @@
       const tbody = document.querySelector('#summary5mTable tbody');
       if (!tbody) return;
       tbody.innerHTML = '';
-  
       const sorted = [...(rows || [])].sort((a, b) => a.ticker.localeCompare(b.ticker));
-  
       for (const r of sorted) {
         const tr = document.createElement('tr');
   
         let td = document.createElement('td');
-        td.textContent = formatTimeToCST(r.ts);
-        tr.appendChild(td);
+        td.textContent = formatTimeToCST(r.ts); tr.appendChild(td);
   
         td = document.createElement('td');
-        td.textContent = r.ticker || '';
-        tr.appendChild(td);
+        td.textContent = r.ticker || ''; tr.appendChild(td);
   
         td = document.createElement('td');
-        td.textContent = r.pivotRelationship || 'Unknown';
-        tr.appendChild(td);
+        td.textContent = r.pivotRelationship || 'Unknown'; tr.appendChild(td);
   
         td = document.createElement('td');
-        td.textContent = r.trend || 'Unknown';
-        tr.appendChild(td);
+        td.textContent = r.trend || 'Unknown'; tr.appendChild(td);
   
         td = document.createElement('td');
-        td.textContent = fmt2(r.midPoint);
-        tr.appendChild(td);
+        td.textContent = fmt2(r.midPoint); tr.appendChild(td);
   
         td = document.createElement('td');
-        td.textContent = fmt2(r.openPrice);
-        tr.appendChild(td);
+        td.textContent = fmt2(r.openPrice); tr.appendChild(td);
   
         tbody.appendChild(tr);
       }

@@ -3,12 +3,6 @@
 // Ticker source priority:
 // 1) options.symbols (array)  2) env PIVOT_TICKERS (CSV)
 // 3) options.symbolsFile (newline list)  4) fallback: alert files
-//
-// "Pivot Relationship" uses CPR value area relationship between
-// today's CPR (computed from prev day's H/L/C) and yesterday's CPR
-// (computed from day-2 H/L/C):
-// - Higher Value, Overlapping Higher Value, Lower Value,
-//   Overlapping Lower Value, Inner Value, Outside Value, No change
 
 const path = require('path');
 const fs = require('fs');
@@ -17,7 +11,7 @@ const yahooFinance = require('yahoo-finance2').default;
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const num   = v => (isNum(v) ? v : NaN);
 
-// ===== ticker resolution =====
+// ---------- ticker resolution ----------
 function safeJson(file) {
   try {
     if (!fs.existsSync(file)) return null;
@@ -26,7 +20,6 @@ function safeJson(file) {
     return JSON.parse(raw);
   } catch { return null; }
 }
-
 function safeLoadAlerts(file) {
   const obj = safeJson(file);
   if (!obj) return [];
@@ -34,7 +27,6 @@ function safeLoadAlerts(file) {
   if (obj && Array.isArray(obj.rows)) return obj.rows;
   return [];
 }
-
 function loadTickersFromAlerts(dataDir) {
   const f5  = path.join(dataDir, 'alerts_5m.json');
   const f15 = path.join(dataDir, 'alerts_15m.json');
@@ -45,13 +37,11 @@ function loadTickersFromAlerts(dataDir) {
   return [...new Set([...a5, ...a15, ...a1h].map(a => a?.Ticker).filter(Boolean))]
     .map(s => String(s).toUpperCase());
 }
-
 function loadTickersFromEnv() {
   const s = (process.env.PIVOT_TICKERS || '').trim();
   if (!s) return [];
   return s.split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
 }
-
 function loadTickersFromFile(filePath) {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
@@ -60,14 +50,12 @@ function loadTickersFromFile(filePath) {
     return [];
   }
 }
-
 function resolveTickers({ dataDir, symbols, symbolsFile }) {
   if (Array.isArray(symbols) && symbols.length) {
     return symbols.map(s => String(s).toUpperCase());
   }
   const fromEnv = loadTickersFromEnv();
   if (fromEnv.length) return fromEnv;
-
   if (symbolsFile) {
     const fromFile = loadTickersFromFile(symbolsFile);
     if (fromFile.length) return fromFile;
@@ -75,74 +63,61 @@ function resolveTickers({ dataDir, symbols, symbolsFile }) {
   return loadTickersFromAlerts(dataDir); // last resort
 }
 
-// ===== CPR / Pivot math =====
+// ---------- CPR math ----------
 function computeCPRFromHLC(high, low, close) {
   if (![high, low, close].every(isNum)) return null;
-  const P  = (high + low + close) / 3; // central pivot
-  const BC = (high + low) / 2;         // bottom central
-  const TC = 2 * P - BC;               // top central
-  const width = Math.abs(TC - BC);
-  return { P, BC, TC, width };
+  const P  = (high + low + close) / 3;
+  const BC = (high + low) / 2;
+  const TC = 2 * P - BC;
+  return { P, BC, TC, width: Math.abs(TC - BC) };
 }
-
-// tolerant comparisons
 function roughlyEq(a, b, tol) { return Math.abs(a - b) <= tol; }
-function gt(a, b, tol) { return a - b >  tol; }
-function lt(a, b, tol) { return b - a >  tol; }
-function ge(a, b, tol) { return a > b || roughlyEq(a, b, tol); }
-function le(a, b, tol) { return a < b || roughlyEq(a, b, tol); }
-
-// CPR value relationship between "today" and "yesterday" CPR
 function cprRelationship(today, yest, tol = 0.05) {
-  // tol default ~5 cents; override via env PIVOT_REL_TOL
   if (!today || !yest) return 'Unknown';
 
-  // 1) No change (all nearly equal)
+  const tBC = today.BC, tTC = today.TC, tP = today.P;
+  const yBC = yest.BC,  yTC = yest.TC,  yP = yest.P;
+
+  // No change
   if (
-    roughlyEq(today.P,  yest.P,  tol) &&
-    roughlyEq(today.BC, yest.BC, tol) &&
-    roughlyEq(today.TC, yest.TC, tol)
+    roughlyEq(tP,  yP,  tol) &&
+    roughlyEq(tBC, yBC, tol) &&
+    roughlyEq(tTC, yTC, tol)
   ) return 'No change';
 
-  // 2) Higher / Lower Value (no overlap)
-  if (gt(today.BC, yest.TC, tol)) return 'Higher Value';
-  if (lt(today.TC, yest.BC, tol)) return 'Lower Value';
+  // Disjoint
+  const disjointAbove = tBC > yTC + tol;
+  const disjointBelow = tTC < yBC - tol;
+  if (disjointAbove) return 'Higher Value';
+  if (disjointBelow) return 'Lower Value';
 
-  // overlap test
-  const overlaps = ge(today.TC, yest.BC, tol) && le(today.BC, yest.TC, tol);
+  // Overlap
+  const strictlyInside  = tTC <= yTC - tol && tBC >= yBC + tol;
+  const strictlyOutside = tTC >= yTC + tol && tBC <= yBC - tol;
 
-  // 3) Inside (today fully within yesterday)
-  if (le(today.TC, yest.TC, tol) && ge(today.BC, yest.BC, tol)) return 'Inner Value';
-
-  // 4) Outside (today fully covers yesterday)
-  if (ge(today.TC, yest.TC, tol) && le(today.BC, yest.BC, tol)) return 'Outside Value';
-
-  // 5) Overlapping Higher/Lower Value (partial overlap, shifted)
-  if (overlaps) {
-    if (gt(today.P, yest.P, tol)) return 'Overlapping Higher Value';
-    if (lt(today.P, yest.P, tol)) return 'Overlapping Lower Value';
+  if (!strictlyInside && !strictlyOutside) {
+    if (tP > yP + tol) return 'Overlapping Higher Value';
+    if (tP < yP - tol) return 'Overlapping Lower Value';
     return 'No change';
   }
+  if (strictlyInside)  return 'Inner Value';
+  if (strictlyOutside) return 'Outside Value';
 
-  // Fallback (shouldn’t hit often)
-  return (today.P > yest.P) ? 'Overlapping Higher Value' : 'Overlapping Lower Value';
+  // Fallback
+  if (tP > yP + tol) return 'Overlapping Higher Value';
+  if (tP < yP - tol) return 'Overlapping Lower Value';
+  return 'No change';
 }
 
-// ===== fetchers =====
+// ---------- fetchers ----------
 async function fetchPrev3DailyBars(ticker) {
-  // Need at least last 3 daily bars: day-2, day-1, day0 (or latest)
   const period2 = new Date();
   const period1 = new Date(Date.now() - 30 * 24 * 3600 * 1000);
   const rows = await yahooFinance.historical(ticker, { period1, period2, interval: '1d' });
   if (!Array.isArray(rows) || rows.length < 3) return null;
   const n = rows.length;
-  return {
-    day2: rows[n - 3], // two sessions ago
-    day1: rows[n - 2], // yesterday (prev session)
-    day0: rows[n - 1], // today (may be partial during session)
-  };
+  return { day2: rows[n - 3], day1: rows[n - 2], day0: rows[n - 1] };
 }
-
 async function fetchLivePriceOpen(ticker) {
   const out = { price: null, open: null };
   try {
@@ -154,52 +129,43 @@ async function fetchLivePriceOpen(ticker) {
   } catch {}
   return out;
 }
-
-// ===== row builder =====
 function priorDayMid(prevHigh, prevLow) {
-  if (isNum(prevHigh) && isNum(prevLow)) {
-    return Number(((prevHigh + prevLow) / 2).toFixed(2));
-  }
+  if (isNum(prevHigh) && isNum(prevLow)) return Number(((prevHigh + prevLow) / 2).toFixed(2));
   return null;
 }
 
+// ---------- rows ----------
 async function buildRows(tickers, relTol) {
   const ts = new Date().toISOString();
   const rows = [];
-
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
-    const [dailies, live] = await Promise.all([
-      fetchPrev3DailyBars(t),
-      fetchLivePriceOpen(t),
-    ]);
+    const [dailies, live] = await Promise.all([fetchPrev3DailyBars(t), fetchLivePriceOpen(t)]);
 
     let relationship = 'Unknown';
     let midPoint = null;
 
     if (dailies?.day1 && dailies?.day2) {
-      // Today’s CPR = computed from day-1 (yesterday’s H/L/C)
+      // Today CPR from yesterday; Yesterday CPR from day-2
       const todayCpr = computeCPRFromHLC(dailies.day1.high, dailies.day1.low, dailies.day1.close);
-      // Yesterday’s CPR = computed from day-2 (prior day’s H/L/C)
       const yestCpr  = computeCPRFromHLC(dailies.day2.high, dailies.day2.low, dailies.day2.close);
       relationship   = cprRelationship(todayCpr, yestCpr, relTol);
       midPoint       = priorDayMid(dailies.day1.high, dailies.day1.low);
     }
 
     rows.push({
-      ts,                          // ISO; client formats CST
+      ts,
       ticker: t,
       pivotRelationship: relationship,
       trend: (live.price != null) ? (live.price >= (midPoint ?? live.price) ? 'Up' : 'Down') : 'Unknown',
-      midPoint,                    // previous-day midpoint (for display)
+      midPoint,
       openPrice: live.open,
     });
   }
-
   return rows;
 }
 
-// ===== scheduler =====
+// ---------- scheduler ----------
 function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, symbolsFile = null }) {
   const tickers = resolveTickers({ dataDir, symbols, symbolsFile });
   if (!tickers.length) {
@@ -207,8 +173,7 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
   } else {
     console.log('[pivot] tracking tickers:', tickers.join(', '));
   }
-
-  const relTol = Number(process.env.PIVOT_REL_TOL || 0.05); // price tolerance (default 5 cents)
+  const relTol = Number(process.env.PIVOT_REL_TOL || 0.05);
 
   const emit = async () => {
     try {
@@ -218,8 +183,7 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
       console.warn('[pivot] update error:', e.message || e);
     }
   };
-
-  emit(); // first tick
+  emit();
   setInterval(emit, intervalMs);
 }
 

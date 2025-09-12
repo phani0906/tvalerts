@@ -72,6 +72,8 @@ function computeCPRFromHLC(high, low, close) {
   return { P, BC, TC, width: Math.abs(TC - BC) };
 }
 function roughlyEq(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+// Relationship categories (unchanged, fixed earlier)
 function cprRelationship(today, yest, tol = 0.05) {
   if (!today || !yest) return 'Unknown';
 
@@ -109,6 +111,30 @@ function cprRelationship(today, yest, tol = 0.05) {
   return 'No change';
 }
 
+// ---------- Trend classification (YOUR RULES) ----------
+function classifyTrendByRules(relationship, price, todayCPR, tol = 0.05) {
+  if (!todayCPR || !isNum(price)) return 'Developing';
+
+  const onOrAboveToday = price >= (todayCPR.BC - tol); // inside or above band
+  const onOrBelowToday = price <= (todayCPR.TC + tol); // inside or below band
+  const belowToday     = price <  (todayCPR.BC - tol);
+  const aboveToday     = price >  (todayCPR.TC + tol);
+
+  const isHV  = relationship === 'Higher Value' || relationship === 'Overlapping Higher Value';
+  const isLV  = relationship === 'Lower Value'  || relationship === 'Overlapping Lower Value';
+
+  // Continuations
+  if (isHV && onOrAboveToday) return 'Bullish Continuation';
+  if (isLV && onOrBelowToday) return 'Bearish Continuation';
+
+  // Reversals
+  if (isHV && belowToday)     return 'Bearish Trend Reversal';
+  if (isLV && aboveToday)     return 'Bullish Trend Reversal';
+
+  // Otherwise developing/neutral
+  return 'Developing';
+}
+
 // ---------- fetchers ----------
 async function fetchPrev3DailyBars(ticker) {
   const period2 = new Date();
@@ -135,7 +161,7 @@ function priorDayMid(prevHigh, prevLow) {
 }
 
 // ---------- rows ----------
-async function buildRows(tickers, relTol) {
+async function buildRows(tickers, relTol, trendTol) {
   const ts = new Date().toISOString();
   const rows = [];
   for (const t of tickers) {
@@ -144,20 +170,25 @@ async function buildRows(tickers, relTol) {
 
     let relationship = 'Unknown';
     let midPoint = null;
+    let trend = 'Developing';
 
+    let todayCpr = null;
     if (dailies?.day1 && dailies?.day2) {
       // Today CPR from yesterday; Yesterday CPR from day-2
-      const todayCpr = computeCPRFromHLC(dailies.day1.high, dailies.day1.low, dailies.day1.close);
+      todayCpr       = computeCPRFromHLC(dailies.day1.high, dailies.day1.low, dailies.day1.close);
       const yestCpr  = computeCPRFromHLC(dailies.day2.high, dailies.day2.low, dailies.day2.close);
       relationship   = cprRelationship(todayCpr, yestCpr, relTol);
       midPoint       = priorDayMid(dailies.day1.high, dailies.day1.low);
+
+      // === Your trend rules ===
+      trend = classifyTrendByRules(relationship, live.price, todayCpr, trendTol);
     }
 
     rows.push({
       ts,
       ticker: t,
       pivotRelationship: relationship,
-      trend: (live.price != null) ? (live.price >= (midPoint ?? live.price) ? 'Up' : 'Down') : 'Unknown',
+      trend,
       midPoint,
       openPrice: live.open,
     });
@@ -173,11 +204,12 @@ function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, s
   } else {
     console.log('[pivot] tracking tickers:', tickers.join(', '));
   }
-  const relTol = Number(process.env.PIVOT_REL_TOL || 0.05);
+  const relTol   = Number(process.env.PIVOT_REL_TOL  || 0.05); // CPR band comparison tolerance
+  const trendTol = Number(process.env.TREND_TOL      || 0.05); // price-vs-CPR tolerance
 
   const emit = async () => {
     try {
-      const rows = await buildRows(tickers, relTol);
+      const rows = await buildRows(tickers, relTol, trendTol);
       io.emit('pivotUpdate', rows);
     } catch (e) {
       console.warn('[pivot] update error:', e.message || e);

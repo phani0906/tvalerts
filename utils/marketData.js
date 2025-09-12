@@ -3,10 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const yahooFinance = require('yahoo-finance2').default;
-
-// Optional: silence Yahoo survey banner
-yahooFinance.suppressNotices?.(['yahooSurvey']);
+const yahooFinance = require('yahoo-finance2').default; // keep for price + daily history only
 
 // -------------------- small helpers --------------------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -14,7 +11,7 @@ const num   = v => (isNum(v) ? v : NaN);
 
 function sma(values, length = 20) {
   const last = values.slice(-length);
-  if (last.length === 0) return null; // tolerant to short series
+  if (last.length === 0) return null;
   let sum = 0;
   for (let i = 0; i < last.length; i++) sum += last[i];
   return sum / last.length;
@@ -74,15 +71,61 @@ function rollingVWAP(bars, n = 20) {
   return pv / vol;
 }
 
-// -------------------- caching for intraday --------------------
+// -------------------- intraday fetch (range-only via native fetch) --------------------
 /**
  * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
  * key: '5m' | '15m' | '1h'
  */
 const cache = {};
-const TTL         = { '5m':  60_000, '15m': 120_000, '1h': 300_000 };
-const LOOKBACK_MS = { '5m': 5*86400000, '15m': 30*86400000, '1h': 90*86400000 };
-const INTERVAL    = { '5m': '5m',       '15m': '15m',       '1h': '1h' };
+const TTL      = { '5m': 60_000, '15m': 120_000, '1h': 300_000 };
+const INTERVAL = { '5m': '5m',   '15m': '15m',   '1h': '1h' };
+const RANGE    = { '5m': '1d',   '15m': '1mo',   '1h': '3mo' };
+
+async function fetchYahooChart(ticker, { interval, range, includePrePost = false }) {
+  const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`);
+  url.searchParams.set('interval', interval);
+  url.searchParams.set('range', range);
+  if (includePrePost) url.searchParams.set('includePrePost', 'true');
+
+  const r = await fetch(url.toString(), {
+    headers: {
+      // UA helps avoid some edge throttles
+      'User-Agent': 'Mozilla/5.0 (Node) TV-Scanner',
+      'Accept': 'application/json,text/plain,*/*'
+    }
+  });
+
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`HTTP ${r.status} ${r.statusText} ${txt.slice(0,120)}`);
+  }
+  const json = await r.json();
+  const result = json?.chart?.result?.[0];
+  if (!result) throw new Error('No result');
+
+  const timestamps = result.timestamp || [];
+  const indicators = result.indicators?.quote?.[0] || {};
+  const meta       = result.meta || {};
+
+  const bars = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const ts = timestamps[i];
+    bars.push({
+      date: new Date(ts * 1000),
+      open: indicators.open?.[i],
+      high: indicators.high?.[i],
+      low:  indicators.low?.[i],
+      close:indicators.close?.[i],
+      volume:indicators.volume?.[i]
+    });
+  }
+  const closes = (indicators.close || []).filter(isNum);
+
+  return {
+    quotes: bars,
+    meta,
+  };
+}
 
 async function fetchIntradaySeries(ticker, key) {
   const nowMs = Date.now();
@@ -90,65 +133,27 @@ async function fetchIntradaySeries(ticker, key) {
   if (c && (nowMs - c.ts) < TTL[key]) return c;
 
   const interval = INTERVAL[key];
+  const range    = RANGE[key];
+  const includePrePost = key === '5m';
 
-  const tryUnix = async () => {
-    const period2 = new Date();
-    const period1 = new Date(nowMs - LOOKBACK_MS[key]);
-    return yahooFinance.chart(ticker, {
-      interval,
-      period1,
-      period2,
-      includePrePost: key === '5m' ? true : false, // 5m benefits from pre/post for early bars
-    });
-  };
-
-  const tryRange = async () => {
-    // 5m: keep it tight so we always have today's bars; include pre/post
-    const range =
-      key === '5m'  ? '1d'  :
-      key === '15m' ? '1mo' :
-      /* 1h */        '3mo';
-    return yahooFinance.chart(ticker, {
-      interval,
-      range,
-      includePrePost: key === '5m' ? true : false,
-    });
-  };
-
-  let result;
-  try {
-    // prefer 'range' for 5m to ensure enough bars at boot
-    result = (key === '5m') ? await tryRange() : await tryUnix();
-  } catch (e) {
-    const msg = (e && (e.message || String(e))) || '';
-    if (msg.includes('/period1') || msg.includes('Expected required property')) {
-      result = await tryRange();
-    } else {
-      throw e;
-    }
-  }
+  const result = await fetchYahooChart(ticker, { interval, range, includePrePost });
 
   const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
 
-  // light debug: see how many 5m bars we got
-  if (key === '5m') {
-    console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
-  }
+  if (key === '5m') console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
 
   const closes = [];
   const bars   = [];
   for (const q of quotes) {
     if (isNum(q?.close)) closes.push(q.close);
-    let d = q?.date instanceof Date ? q.date : null;
-    if (!d && typeof q?.timestamp === 'number') d = new Date(q.timestamp * 1000);
     bars.push({
-      date: d || new Date(),
-      open: q?.open,
-      high: q?.high,
-      low:  q?.low,
-      close:q?.close,
-      volume:q?.volume
+      date: q.date || new Date(),
+      open: q.open,
+      high: q.high,
+      low:  q.low,
+      close:q.close,
+      volume:q.volume
     });
   }
 
@@ -184,7 +189,6 @@ async function fetchMA20(ticker, key) {
 async function fetchVWAP(ticker, key) {
   try {
     const { bars, gmtoffsetSec } = await fetchIntradaySeries(ticker, key);
-    // Prefer same-session VWAP; fallback to rolling VWAP over ~20 bars
     let v = sessionVWAP(bars, gmtoffsetSec);
     if (v == null) v = rollingVWAP(bars, 20);
     return (v != null && isNum(v)) ? Number(v.toFixed(2)) : 'N/A';
@@ -194,14 +198,12 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
-// previous-day midpoint from daily bars
+// previous-day midpoint from daily bars (yahoo-finance2.historical is fine here)
 async function fetchPrevDayMid(ticker) {
   try {
     const period2 = new Date();
     const period1 = new Date(Date.now() - 15 * 24 * 3600 * 1000);
-    const dailyBars = await yahooFinance.historical(ticker, {
-      period1, period2, interval: '1d'
-    });
+    const dailyBars = await yahooFinance.historical(ticker, { period1, period2, interval: '1d' });
     if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
       const prev = dailyBars[dailyBars.length - 2]; // yesterday
       if (isNum(prev?.high) && isNum(prev?.low)) {
@@ -237,7 +239,7 @@ function mergeTicker(t, patch) {
   const prev = currentData[t] || {};
   const next = { ...prev };
 
-  // Only update fields when the incoming value is numeric (keep last-good)
+  // Only update when incoming value is numeric (keep last-good)
   if ('Price'   in patch) assignIfNum(next, 'Price',   patch.Price);
   if ('DayMid'  in patch) assignIfNum(next, 'DayMid',  patch.DayMid);
 
@@ -319,5 +321,5 @@ function startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 }) 
 
 module.exports = {
   startMarketDataUpdater,
-  fetchPriceOnly, // exposed for /debug/price in server
+  fetchPriceOnly,
 };

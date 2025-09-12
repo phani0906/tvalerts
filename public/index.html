@@ -9,21 +9,20 @@
       margin: 0;
       padding: 0;
       height: 100vh;
-      display: flex;
-      justify-content: center;
-      /* instead of centering, push towards bottom */
-      align-items: flex-end;
       background: url("images/background.jpg") no-repeat center center fixed;
       background-size: cover;
       font-family: Arial, sans-serif;
     }
   
     .container {
+      position: absolute;
+      top: 75%;              /* 👈 75% down from the top */
+      left: 50%;
+      transform: translate(-50%, -50%); /* center horizontally, offset vertically */
       text-align: center;
       background: rgba(0, 0, 0, 0.6);
       padding: 30px 40px;
       border-radius: 12px;
-      margin-bottom: 8vh; /* 👈 push it upward from bottom */
       color: #FFD700;
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
     }
@@ -52,7 +51,8 @@
       color: #fff;
       transform: scale(1.05);
     }
-  </style>  
+  </style>
+  
 </head>
 <body>
   <div class="container">

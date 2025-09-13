@@ -259,3 +259,14 @@ table td:nth-child(n+5) {
 .table-container .skeleton {
   display: none !important;
 }
+
+ /* Make all numeric values larger */
+table td {
+  font-size: 1.3em;   /* adjust to taste, 1.3em ≈ 30% larger */
+}
+
+/* Keep diff text consistent with main numbers */
+.diff-up, .diff-down {
+  font-size: 1em;     /* match the parent cell size */
+}
+

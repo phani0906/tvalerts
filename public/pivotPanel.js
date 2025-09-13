@@ -70,9 +70,26 @@
                 tr.appendChild(tdMid);
 
                 const tdOpen = document.createElement('td');
-                tdOpen.textContent =
-                    (openRaw != null && isFinite(Number(openRaw))) ? Number(openRaw).toFixed(2) : '';
+                const openVal = (openRaw != null && isFinite(Number(openRaw))) ? Number(openRaw).toFixed(2) : '';
+                const priceVal = (r.currentPrice != null && isFinite(Number(r.currentPrice))) ? Number(r.currentPrice).toFixed(2) : '';
+
+                if (openVal) {
+                    tdOpen.textContent = openVal;
+                }
+
+                if (priceVal) {
+                    const span = document.createElement('span');
+                    span.textContent = ` / ${priceVal}`;
+                    if (Number(r.currentPrice) > Number(openRaw)) {
+                        span.style.color = 'limegreen';
+                    } else if (Number(r.currentPrice) < Number(openRaw)) {
+                        span.style.color = 'red';
+                    }
+                    tdOpen.appendChild(span);
+                }
+
                 tr.appendChild(tdOpen);
+
 
                 tbody.appendChild(tr);
             }

@@ -187,13 +187,14 @@ async function buildRows(tickers, relTol, trendTol) {
     }
 
     rows.push({
-      ts,
-      ticker: t,
-      pivotRelationship: relationship,
-      trend,
-      midPoint,
-      openPrice: live.open,
-    });
+        ts,
+        ticker: t,
+        pivotRelationship: relationship,
+        trend,
+        midPoint,
+        openPrice: live.open,
+        currentPrice: live.price   // 👈 add this
+      });      
   }
   return rows;
 }

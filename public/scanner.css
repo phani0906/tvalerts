@@ -262,7 +262,7 @@ table td:nth-child(n+5) {
 
  /* Make all numeric values larger */
 table td {
-  font-size: 1.3em;   /* adjust to taste, 1.3em ≈ 30% larger */
+  font-size: 1em;   /* adjust to taste, 1.3em ≈ 30% larger */
 }
 
 /* Keep diff text consistent with main numbers */

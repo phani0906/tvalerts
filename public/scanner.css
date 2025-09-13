@@ -279,7 +279,7 @@ table td {
 .rel-blue  { color: #1E90FF; font-weight: bold; }
 .rel-gray  { color: #A9A9A9; font-weight: bold; }
 
-/* Pivot/CPR table column widths */
+/* Pivot table column widths */
 #pivotTableBullCont th:nth-child(1),
 #pivotTableBullRev th:nth-child(1),
 #pivotTableBearCont th:nth-child(1),
@@ -288,7 +288,7 @@ table td {
 #pivotTableBullRev td:nth-child(1),
 #pivotTableBearCont td:nth-child(1),
 #pivotTableBearRev td:nth-child(1) {
-  width: 8%;   /* Ticker shrunk */
+  width: 8%;   /* Ticker */
 }
 
 #pivotTableBullCont th:nth-child(2),
@@ -299,12 +299,31 @@ table td {
 #pivotTableBullRev td:nth-child(2),
 #pivotTableBearCont td:nth-child(2),
 #pivotTableBearRev td:nth-child(2) {
-  width: 12%;  /* Pivot Rel shrunk */
+  width: 10%;  /* Rel */
 }
 
-/* Mid-point & Open/Price left at auto (~15% each) */
+#pivotTableBullCont th:nth-child(3),
+#pivotTableBullRev th:nth-child(3),
+#pivotTableBearCont th:nth-child(3),
+#pivotTableBearRev th:nth-child(3),
+#pivotTableBullCont td:nth-child(3),
+#pivotTableBullRev td:nth-child(3),
+#pivotTableBearCont td:nth-child(3),
+#pivotTableBearRev td:nth-child(3) {
+  width: 14%;  /* Mid-point */
+}
 
-/* Pivot Levels: take the remaining space */
+#pivotTableBullCont th:nth-child(4),
+#pivotTableBullRev th:nth-child(4),
+#pivotTableBearCont th:nth-child(4),
+#pivotTableBearRev th:nth-child(4),
+#pivotTableBullCont td:nth-child(4),
+#pivotTableBullRev td:nth-child(4),
+#pivotTableBearCont td:nth-child(4),
+#pivotTableBearRev td:nth-child(4) {
+  width: 14%;  /* Open/Price */
+}
+
 #pivotTableBullCont th:nth-child(5),
 #pivotTableBullRev th:nth-child(5),
 #pivotTableBearCont th:nth-child(5),
@@ -313,6 +332,5 @@ table td {
 #pivotTableBullRev td:nth-child(5),
 #pivotTableBearCont td:nth-child(5),
 #pivotTableBearRev td:nth-child(5) {
-  width: auto;
+  width: auto; /* Pivot Levels takes the rest */
 }
-

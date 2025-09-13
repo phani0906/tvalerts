@@ -279,3 +279,40 @@ table td {
 .rel-blue  { color: #1E90FF; font-weight: bold; }
 .rel-gray  { color: #A9A9A9; font-weight: bold; }
 
+/* Pivot/CPR table column widths */
+#pivotTableBullCont th:nth-child(1),
+#pivotTableBullRev th:nth-child(1),
+#pivotTableBearCont th:nth-child(1),
+#pivotTableBearRev th:nth-child(1),
+#pivotTableBullCont td:nth-child(1),
+#pivotTableBullRev td:nth-child(1),
+#pivotTableBearCont td:nth-child(1),
+#pivotTableBearRev td:nth-child(1) {
+  width: 8%;   /* Ticker shrunk */
+}
+
+#pivotTableBullCont th:nth-child(2),
+#pivotTableBullRev th:nth-child(2),
+#pivotTableBearCont th:nth-child(2),
+#pivotTableBearRev th:nth-child(2),
+#pivotTableBullCont td:nth-child(2),
+#pivotTableBullRev td:nth-child(2),
+#pivotTableBearCont td:nth-child(2),
+#pivotTableBearRev td:nth-child(2) {
+  width: 12%;  /* Pivot Rel shrunk */
+}
+
+/* Mid-point & Open/Price left at auto (~15% each) */
+
+/* Pivot Levels: take the remaining space */
+#pivotTableBullCont th:nth-child(5),
+#pivotTableBullRev th:nth-child(5),
+#pivotTableBearCont th:nth-child(5),
+#pivotTableBearRev th:nth-child(5),
+#pivotTableBullCont td:nth-child(5),
+#pivotTableBullRev td:nth-child(5),
+#pivotTableBearCont td:nth-child(5),
+#pivotTableBearRev td:nth-child(5) {
+  width: auto;
+}
+

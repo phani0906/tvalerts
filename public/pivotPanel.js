@@ -30,23 +30,15 @@
     function applyNearZeroBlink(td, diff, tol) {
       td.classList.remove('near-zero', 'blink');
       if (!isNum(diff) || !isNum(tol)) return;
-      if (Math.abs(diff) <= Number(tol)) {
-        td.classList.add('near-zero', 'blink');
-      }
+      if (Math.abs(diff) <= Number(tol)) td.classList.add('near-zero', 'blink');
     }
   
     function renderPivotGroup(tableId, rows) {
       try {
         const table = document.getElementById(tableId);
-        if (!table) {
-          console.warn(`[pivot] table not found: #${tableId}`);
-          return;
-        }
+        if (!table) { console.warn(`[pivot] table not found: #${tableId}`); return; }
         const tbody = table.querySelector('tbody');
-        if (!tbody) {
-          console.warn(`[pivot] tbody missing in #${tableId}`);
-          return;
-        }
+        if (!tbody) { console.warn(`[pivot] tbody missing in #${tableId}`); return; }
   
         const list = Array.isArray(rows) ? rows : [];
         tbody.innerHTML = '';
@@ -75,14 +67,13 @@
   
           const tr = document.createElement('tr');
   
-          // Ticker
+          // ===== Ticker =====
           const tdTicker = document.createElement('td');
           tdTicker.textContent = ticker;
           tr.appendChild(tdTicker);
   
           // ===== Pivot Relationship -> short form + color =====
           const tdRel = document.createElement('td');
-  
           const relMap = {
             'Higher Value': 'HV',
             'Overlapping Higher Value': 'OHV',
@@ -115,7 +106,7 @@
           if (shortRel) tdRel.classList.add('emphasis');
           tr.appendChild(tdRel);
   
-          // ---- Mid-point with inline (±diff to current price) + blink on tolerance ----
+          // ===== Mid-point with inline (±diff to current price) + blink on tolerance =====
           const tdMid = document.createElement('td');
           const midVal   = isNum(midRaw)   ? num(midRaw)   : null;
           const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
@@ -136,7 +127,7 @@
           }
           tr.appendChild(tdMid);
   
-          // ---- Open / Price (price colored vs open) ----
+          // ===== Open / Price (price colored vs open) =====
           const tdOpen = document.createElement('td');
           const openVal = isNum(openRaw) ? num(openRaw) : null;
   
@@ -157,25 +148,58 @@
           }
           tr.appendChild(tdOpen);
   
-          // ---- Pivot Levels (simple text: R5 → ... → S5, incl. PrevHigh/PrevLow) ----
+          // ===== Pivot Levels: circle with label inside + price below =====
           const tdLevels = document.createElement('td');
+          tdLevels.innerHTML = ''; // ensure no leftover text
   
-          const text =
-            r.pivotLevelsText ||
-            (r.pivotLevels && typeof r.pivotLevels.text === 'string' ? r.pivotLevels.text : null);
+          const pl = r.pivotLevels || null;
+          if (pl) {
+            const levels = [
+              { key: 'R5', val: pl.R5 },
+              { key: 'R4', val: pl.R4 },
+              { key: 'R3', val: pl.R3 },
+              { key: 'H',  val: pl.prevHigh },
+              { key: 'TC', val: pl.TC },
+              { key: 'P',  val: pl.P },
+              { key: 'BC', val: pl.BC },
+              { key: 'L',  val: pl.prevLow },
+              { key: 'S3', val: pl.S3 },
+              { key: 'S4', val: pl.S4 },
+              { key: 'S5', val: pl.S5 },
+            ];
   
-          if (text) {
-            tdLevels.textContent = text;  // simple text for now
+            const container = document.createElement('div');
+            container.className = 'pivot-circles';
+  
+            for (const lvl of levels) {
+              if (lvl.val == null) continue;
+  
+              const wrapper = document.createElement('div');
+              wrapper.className = 'circle-wrapper';
+  
+              const circle = document.createElement('div');
+              circle.className = 'circle';
+              circle.textContent = lvl.key;   // label INSIDE circle
+  
+              const price = document.createElement('div');
+              price.className = 'circle-price';
+              price.textContent = fmt2(lvl.val); // price BELOW circle
+  
+              wrapper.appendChild(circle);
+              wrapper.appendChild(price);
+              container.appendChild(wrapper);
+            }
+  
+            tdLevels.appendChild(container);
           } else {
-            // Fallback if only CPR is present (older server)
-            const pl = r.pivotLevels || r.cpr || null;
-            const P  = (pl && typeof pl.P  === 'number') ? pl.P  : (typeof r.P  === 'number' ? r.P  : null);
-            const BC = (pl && typeof pl.BC === 'number') ? pl.BC : (typeof r.BC === 'number' ? r.BC : null);
-            const TC = (pl && typeof pl.TC === 'number') ? pl.TC : (typeof r.TC === 'number' ? r.TC : null);
+            // fallback for very old payloads (CPR only)
+            const pP  = (r.P  != null) ? r.P  : undefined;
+            const pBC = (r.BC != null) ? r.BC : undefined;
+            const pTC = (r.TC != null) ? r.TC : undefined;
             const parts = [];
-            if (TC != null) parts.push(`TC ${fmt2(TC)}`);
-            if (P  != null) parts.push(`P ${fmt2(P)}`);
-            if (BC != null) parts.push(`BC ${fmt2(BC)}`);
+            if (pTC !== undefined) parts.push(`TC ${fmt2(pTC)}`);
+            if (pP  !== undefined) parts.push(`P ${fmt2(pP)}`);
+            if (pBC !== undefined) parts.push(`BC ${fmt2(pBC)}`);
             tdLevels.textContent = parts.join(' | ');
           }
           tr.appendChild(tdLevels);

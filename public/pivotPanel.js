@@ -15,8 +15,7 @@
       try {
         const r = await fetch('/tolerance', { cache: 'no-store' });
         if (r.ok) TOL = Object.assign(TOL, await r.json());
-        // Expose for quick tweaking from console
-        window.PIVOT_TOLERANCE = TOL;
+        window.PIVOT_TOLERANCE = TOL; // expose for quick tweaking
       } catch { /* keep defaults */ }
     })();
   
@@ -96,13 +95,10 @@
           if (midVal != null) {
             if (priceVal != null) {
               const diff = priceVal - midVal;
-              // single inline span so it renders as: "100.54 (+4.53)"
               const span = document.createElement('span');
               span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
               span.className = diff >= 0 ? 'diff-up' : 'diff-down';
               tdMid.appendChild(span);
-  
-              // blink if within tolerance (from env)
               applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
             } else {
               tdMid.textContent = fmt2(midVal);
@@ -127,12 +123,33 @@
               tdOpen.textContent = fmt2(openVal);
             }
           } else if (priceVal != null) {
-            // if open missing but price exists, still show price
             const s = document.createElement('span');
             s.textContent = fmt2(priceVal);
             tdOpen.appendChild(s);
           }
           tr.appendChild(tdOpen);
+  
+          // ---- Pivot Levels (simple text: R5 → ... → S5, incl. PrevHigh/PrevLow) ----
+          const tdLevels = document.createElement('td');
+  
+          const text = r.pivotLevelsText
+            || (r.pivotLevels && typeof r.pivotLevels.text === 'string' ? r.pivotLevels.text : null);
+  
+          if (text) {
+            tdLevels.textContent = text;  // simple text for now
+          } else {
+            // Fallback if only CPR is present (older server)
+            const pl = r.pivotLevels || r.cpr || null;
+            const P  = (pl && typeof pl.P  === 'number') ? pl.P  : (typeof r.P  === 'number' ? r.P  : null);
+            const BC = (pl && typeof pl.BC === 'number') ? pl.BC : (typeof r.BC === 'number' ? r.BC : null);
+            const TC = (pl && typeof pl.TC === 'number') ? pl.TC : (typeof r.TC === 'number' ? r.TC : null);
+            const parts = [];
+            if (TC != null) parts.push(`TC ${fmt2(TC)}`);
+            if (P  != null) parts.push(`P ${fmt2(P)}`);
+            if (BC != null) parts.push(`BC ${fmt2(BC)}`);
+            tdLevels.textContent = parts.join(' | ');
+          }
+          tr.appendChild(tdLevels);
   
           tbody.appendChild(tr);
         }

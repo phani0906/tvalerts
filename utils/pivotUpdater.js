@@ -13,7 +13,7 @@ const num   = v => (isNum(v) ? v : NaN);
 
 let _latestPivotRows = [];
 
-// ---------- ticker resolution ----------
+// ---------- safe loaders ----------
 function safeJson(file) {
   try {
     if (!fs.existsSync(file)) return null;
@@ -25,10 +25,12 @@ function safeJson(file) {
 function safeLoadAlerts(file) {
   const obj = safeJson(file);
   if (!obj) return [];
-  if (Array.isArray(obj)) return obj;                 // legacy
+  if (Array.isArray(obj)) return obj;                 // legacy array
   if (obj && Array.isArray(obj.rows)) return obj.rows;
   return [];
 }
+
+// ---------- ticker resolution ----------
 function loadTickersFromAlerts(dataDir) {
   const f5  = path.join(dataDir, 'alerts_5m.json');
   const f15 = path.join(dataDir, 'alerts_15m.json');
@@ -75,7 +77,7 @@ function computeCPRFromHLC(high, low, close) {
 }
 function roughlyEq(a, b, tol) { return Math.abs(a - b) <= tol; }
 
-// Relationship categories (unchanged, fixed earlier)
+// Relationship categories (unchanged)
 function cprRelationship(today, yest, tol = 0.05) {
   if (!today || !yest) return 'Unknown';
 
@@ -83,11 +85,9 @@ function cprRelationship(today, yest, tol = 0.05) {
   const yBC = yest.BC,  yTC = yest.TC,  yP = yest.P;
 
   // No change
-  if (
-    roughlyEq(tP,  yP,  tol) &&
-    roughlyEq(tBC, yBC, tol) &&
-    roughlyEq(tTC, yTC, tol)
-  ) return 'No change';
+  if (roughlyEq(tP,  yP,  tol) && roughlyEq(tBC, yBC, tol) && roughlyEq(tTC, yTC, tol)) {
+    return 'No change';
+  }
 
   // Disjoint
   const disjointAbove = tBC > yTC + tol;
@@ -113,7 +113,7 @@ function cprRelationship(today, yest, tol = 0.05) {
   return 'No change';
 }
 
-// ---------- Trend classification (YOUR RULES) ----------
+// ---------- Trend classification (your rules) ----------
 function classifyTrendByRules(relationship, price, todayCPR, tol = 0.05) {
   if (!todayCPR || !isNum(price)) return 'Developing';
 
@@ -135,6 +135,55 @@ function classifyTrendByRules(relationship, price, todayCPR, tol = 0.05) {
 
   // Otherwise developing/neutral
   return 'Developing';
+}
+
+// ---------- Additional Pivot Suite ----------
+// Camarilla S/R (S3/S4/S5, R3/R4/R5) using factor 1.1 (PivotBoss convention).
+function computeCamarilla(yHigh, yLow, yClose, factor = 1.1) {
+  if (![yHigh, yLow, yClose].every(isNum)) return null;
+  const range = yHigh - yLow;
+  const k = (factor * range);
+  const R3 = yClose + (k / 4);
+  const R4 = yClose + (k / 2);
+  const R5 = yClose + (k * 1.0);
+  const S3 = yClose - (k / 4);
+  const S4 = yClose - (k / 2);
+  const S5 = yClose - (k * 1.0);
+  return { R3, R4, R5, S3, S4, S5 };
+}
+
+function buildPivotSuite(yHigh, yLow, yClose) {
+  const cpr = computeCPRFromHLC(yHigh, yLow, yClose);   // { P, BC, TC, width }
+  const cam = computeCamarilla(yHigh, yLow, yClose);    // { R3,R4,R5,S3,S4,S5 }
+  if (!cpr || !cam) return null;
+
+  const P  = Number(cpr.P.toFixed(2));
+  const BC = Number(cpr.BC.toFixed(2));
+  const TC = Number(cpr.TC.toFixed(2));
+
+  const R3 = Number(cam.R3.toFixed(2));
+  const R4 = Number(cam.R4.toFixed(2));
+  const R5 = Number(cam.R5.toFixed(2));
+  const S3 = Number(cam.S3.toFixed(2));
+  const S4 = Number(cam.S4.toFixed(2));
+  const S5 = Number(cam.S5.toFixed(2));
+
+  const prevHigh = Number(yHigh.toFixed(2));
+  const prevLow  = Number(yLow.toFixed(2));
+
+  // Text in descending order R5→S5 including previous day H/L
+  const text = [
+    `R5 ${R5}`, `R4 ${R4}`, `R3 ${R3}`,
+    `PrevHigh ${prevHigh}`,
+    `TC ${TC}`, `P ${P}`, `BC ${BC}`,
+    `PrevLow ${prevLow}`,
+    `S3 ${S3}`, `S4 ${S4}`, `S5 ${S5}`
+  ].join(' | ');
+
+  return {
+    P, BC, TC, R3, R4, R5, S3, S4, S5, prevHigh, prevLow,
+    text
+  };
 }
 
 // ---------- fetchers ----------
@@ -173,55 +222,73 @@ async function buildRows(tickers, relTol, trendTol) {
     let relationship = 'Unknown';
     let midPoint = null;
     let trend = 'Developing';
-
     let todayCpr = null;
+    let pivotSuite = null;
+
     if (dailies?.day1 && dailies?.day2) {
-      // Today CPR from yesterday; Yesterday CPR from day-2
+      // Today CPR from yesterday; Yesterday CPR from day-2 (per PivotBoss)
       todayCpr       = computeCPRFromHLC(dailies.day1.high, dailies.day1.low, dailies.day1.close);
       const yestCpr  = computeCPRFromHLC(dailies.day2.high, dailies.day2.low, dailies.day2.close);
       relationship   = cprRelationship(todayCpr, yestCpr, relTol);
       midPoint       = priorDayMid(dailies.day1.high, dailies.day1.low);
-
-      // === Your trend rules ===
-      trend = classifyTrendByRules(relationship, live.price, todayCpr, trendTol);
+      trend          = classifyTrendByRules(relationship, live.price, todayCpr, trendTol);
+      pivotSuite     = buildPivotSuite(dailies.day1.high, dailies.day1.low, dailies.day1.close);
     }
 
     rows.push({
-        ts,
-        ticker: t,
-        pivotRelationship: relationship,
-        trend,
-        midPoint,
-        openPrice: live.open,
-        currentPrice: live.price,
-        pivotLevels: todayCpr
-      });      
+      ts,
+      ticker: t,
+      pivotRelationship: relationship,
+      trend,
+      midPoint,                 // prior-day midpoint
+      openPrice: live.open,
+      currentPrice: live.price,
+      pivotLevels: pivotSuite,                    // structured numbers
+      pivotLevelsText: pivotSuite ? pivotSuite.text : '' // printable string
+    });
   }
   return rows;
 }
 
 // ---------- scheduler ----------
-function startPivotUpdater(io, { dataDir, intervalMs = 60_000, symbols = null, symbolsFile = null }) {
+function startPivotUpdater(
+  io,
+  {
+    dataDir,
+    intervalMs = 60_000,
+    symbols = null,
+    symbolsFile = null,
+    relationshipTolerance = 0.05,
+    trendTolerance = 0.05,
+  }
+) {
   const tickers = resolveTickers({ dataDir, symbols, symbolsFile });
   if (!tickers.length) {
-    console.warn('[pivot] No tickers resolved. Set PIVOT_TICKERS or pass options.symbols.');
-  } else {
-    //console.log('[pivot] tracking tickers:', tickers.join(', '));
+    console.warn('[pivot] No tickers resolved; pivot updater idle.');
+    _latestPivotRows = [];
+    return;
   }
-  const relTol   = Number(process.env.PIVOT_REL_TOL  || 0.05); // CPR band comparison tolerance
-  const trendTol = Number(process.env.TREND_TOL      || 0.05); // price-vs-CPR tolerance
 
-  const emit = async () => {
+  async function tick() {
     try {
-      const rows = await buildRows(tickers, relTol, trendTol);
-      _latestPivotRows = rows;                 // <-- cache latest
+      const rows = await buildRows(tickers, relationshipTolerance, trendTolerance);
+      _latestPivotRows = rows;
       io.emit('pivotUpdate', rows);
     } catch (e) {
-      console.warn('[pivot] update error:', e.message || e);
+      console.warn('[pivot] update failed:', e.message);
     }
-  };
-  emit();
-  setInterval(emit, intervalMs);
+  }
+
+  // Initial run immediately, then schedule
+  tick();
+  setInterval(tick, intervalMs);
 }
 
-module.exports = { startPivotUpdater, getPivotSnapshot: () => _latestPivotRows };
+function getLatestPivotRows() {
+  return _latestPivotRows;
+}
+
+module.exports = {
+  startPivotUpdater,
+  getLatestPivotRows,
+};

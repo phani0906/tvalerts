@@ -148,9 +148,9 @@
           }
           tr.appendChild(tdOpen);
   
-          // ===== Pivot Levels: circle with label inside + price below =====
+          // ===== Pivot Levels: two-line text per pivot, separated by pipes =====
           const tdLevels = document.createElement('td');
-          tdLevels.innerHTML = ''; // ensure no leftover text
+          tdLevels.innerHTML = ''; // ensure clean slate
   
           const pl = r.pivotLevels || null;
           if (pl) {
@@ -168,29 +168,63 @@
               { key: 'S5', val: pl.S5 },
             ];
   
+            // ---- New text layout ----
+            const row = document.createElement('div');
+            row.className = 'pivot-text-row';
+  
+            levels.forEach((lvl, idx) => {
+              if (lvl.val == null) return;
+  
+              const block = document.createElement('span');
+              block.className = 'pivot-text-block';
+  
+              const line1 = document.createElement('div');
+              line1.className = 'pivot-text-key';
+              line1.textContent = String(lvl.key);
+  
+              const line2 = document.createElement('div');
+              line2.className = 'pivot-text-price';
+              line2.textContent = fmt2(lvl.val);
+  
+              block.appendChild(line1);
+              block.appendChild(line2);
+              row.appendChild(block);
+  
+              // add pipe separator between blocks (except after last)
+              // find next available (non-null) index to avoid trailing pipe when some values are missing
+              let hasNext = false;
+              for (let j = idx + 1; j < levels.length; j++) {
+                if (levels[j].val != null) { hasNext = true; break; }
+              }
+              if (hasNext) {
+                const sep = document.createElement('span');
+                sep.className = 'pivot-text-sep';
+                sep.textContent = ' | ';
+                row.appendChild(sep);
+              }
+            });
+  
+            tdLevels.appendChild(row);
+  
+            /* ===== Previous "circles" UI (kept for reference; commented out) =====
             const container = document.createElement('div');
             container.className = 'pivot-circles';
-  
             for (const lvl of levels) {
               if (lvl.val == null) continue;
-  
               const wrapper = document.createElement('div');
               wrapper.className = 'circle-wrapper';
-  
               const circle = document.createElement('div');
               circle.className = 'circle';
               circle.textContent = lvl.key;   // label INSIDE circle
-  
               const price = document.createElement('div');
               price.className = 'circle-price';
               price.textContent = fmt2(lvl.val); // price BELOW circle
-  
               wrapper.appendChild(circle);
               wrapper.appendChild(price);
               container.appendChild(wrapper);
             }
-  
             tdLevels.appendChild(container);
+            ===== end circles UI ===== */
           } else {
             // fallback for very old payloads (CPR only)
             const pP  = (r.P  != null) ? r.P  : undefined;

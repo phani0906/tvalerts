@@ -379,3 +379,34 @@ table td {
   text-align: center;
 }
 
+.pivot-text-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0; /* separators handle spacing */
+}
+
+.pivot-text-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  margin: 0 2px;
+  min-width: 44px; /* keeps columns readable; tweak if needed */
+}
+
+.pivot-text-key {
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.pivot-text-price {
+  font-size: 0.7rem;
+  color: #ccc;
+}
+
+.pivot-text-sep {
+  opacity: 0.9;
+  padding: 0 4px;
+}
+

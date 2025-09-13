@@ -273,3 +273,9 @@ table td {
 #quoteBox {
   font-size: 1.3em;   /* adjust to taste */
 }
+
+.rel-green { color: #00FF00; font-weight: bold; }
+.rel-red   { color: #FF4500; font-weight: bold; }
+.rel-blue  { color: #1E90FF; font-weight: bold; }
+.rel-gray  { color: #A9A9A9; font-weight: bold; }
+

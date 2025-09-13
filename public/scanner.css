@@ -401,7 +401,7 @@ table td {
 }
 
 .pivot-text-price {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #ccc;
 }
 
@@ -409,4 +409,25 @@ table td {
   opacity: 0.9;
   padding: 0 4px;
 }
+
+/* highlight the two pivot blocks that bracket current price */
+.pivot-text-block.pivot-hl .pivot-text-key,
+.pivot-text-block.pivot-hl .pivot-text-price {
+  color: #32cd32;       /* limegreen */
+  font-weight: 700;
+}
+
+/* highlight the current price text in Open/Price */
+.pivot-hl-price {
+  color: #32cd32 !important;
+  font-weight: 700;
+}
+
+/* existing two-line layout styles (from earlier suggestion) */
+.pivot-text-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0; }
+.pivot-text-block { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.05; margin: 0 2px; min-width: 44px; }
+.pivot-text-key { font-weight: 700; font-size: 0.72rem; }
+.pivot-text-price { font-size: 0.7rem; color: #ccc; }
+.pivot-text-sep { opacity: 0.9; padding: 0 4px; }
+
 

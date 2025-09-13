@@ -122,20 +122,27 @@
           const tdOpen = document.createElement('td');
           const openVal = isNum(openRaw) ? num(openRaw) : null;
   
-          if (openVal != null) {
-            if (priceVal != null) {
-              const s = document.createElement('span');
-              s.textContent = `${fmt2(openVal)} / ${fmt2(priceVal)}`;
-              if (priceVal > openVal) s.style.color = 'limegreen';
-              else if (priceVal < openVal) s.style.color = 'red';
-              tdOpen.appendChild(s);
-            } else {
-              tdOpen.textContent = fmt2(openVal);
+          if (openVal != null || priceVal != null) {
+            // render "open / price" as two spans so we can highlight price independently
+            const openSpan = document.createElement('span');
+            const priceSpan = document.createElement('span');
+  
+            if (openVal != null) {
+              openSpan.textContent = fmt2(openVal) + ' / ';
             }
-          } else if (priceVal != null) {
-            const s = document.createElement('span');
-            s.textContent = fmt2(priceVal);
-            tdOpen.appendChild(s);
+  
+            if (priceVal != null) {
+              priceSpan.textContent = fmt2(priceVal);
+            }
+  
+            // default color logic vs open, if both present
+            if (openVal != null && priceVal != null) {
+              if (priceVal > openVal) priceSpan.style.color = 'limegreen';
+              else if (priceVal < openVal) priceSpan.style.color = 'red';
+            }
+  
+            tdOpen.appendChild(openSpan);
+            tdOpen.appendChild(priceSpan);
           }
           tr.appendChild(tdOpen);
   
@@ -162,12 +169,37 @@
             // sort ascending by price
             levels.sort((a, b) => a.val - b.val);
   
+            // ---- find the bracketing pair around current price ----
+            let leftIdx = -1, rightIdx = -1;
+            if (isNum(priceVal) && levels.length > 0) {
+              for (let i = 0; i < levels.length - 1; i++) {
+                const a = levels[i].val, b = levels[i + 1].val;
+                if (priceVal >= a && priceVal <= b) {
+                  leftIdx = i;
+                  rightIdx = i + 1;
+                  break;
+                }
+              }
+              // if price equals an endpoint outside range, highlight nearest pair sensibly
+              if (leftIdx === -1 && priceVal < levels[0].val && levels.length >= 2) {
+                leftIdx = 0; rightIdx = 1;
+              }
+              if (leftIdx === -1 && priceVal > levels[levels.length - 1].val && levels.length >= 2) {
+                leftIdx = levels.length - 2; rightIdx = levels.length - 1;
+              }
+            }
+  
             const row = document.createElement('div');
             row.className = 'pivot-text-row';
   
             levels.forEach((lvl, idx) => {
               const block = document.createElement('span');
               block.className = 'pivot-text-block';
+  
+              // apply green highlight if this block is one of the bracketing pair
+              if (idx === leftIdx || idx === rightIdx) {
+                block.classList.add('pivot-hl');
+              }
   
               const line1 = document.createElement('div');
               line1.className = 'pivot-text-key';
@@ -190,6 +222,15 @@
             });
   
             tdLevels.appendChild(row);
+  
+            // also force the current price (in Open/Price col) to green if we found a bracket
+            if (leftIdx !== -1 && rightIdx !== -1) {
+              // price is the second span inside tdOpen
+              const priceSpan = tdOpen.querySelector('span:last-child');
+              if (priceSpan) {
+                priceSpan.classList.add('pivot-hl-price');
+              }
+            }
   
             /* ===== Old circle UI (kept, commented out) =====
             const container = document.createElement('div');

@@ -44,25 +44,20 @@
         tbody.innerHTML = '';
   
         for (const r of list) {
-          // ---- tolerant field resolution ----
           const ticker = r.ticker ?? r.Ticker ?? '';
-  
           const rel =
             r.relationshipLabel ??
             r.pivotRelationship ??
             r.relationship ?? '';
   
-          // Mid-point (various keys)
           const midRaw =
             r.midpoint ?? r.midPoint ?? r.mid ??
             r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
   
-          // Open and live Price
           const openRaw =
             r.open ?? r.openPrice ?? r.o ??
             r.Open ?? r.OPEN;
   
-          // Prefer server-provided currentPrice; fall back to price/Price if present
           const priceRaw = r.currentPrice ?? r.price ?? r.Price;
   
           const tr = document.createElement('tr');
@@ -72,7 +67,7 @@
           tdTicker.textContent = ticker;
           tr.appendChild(tdTicker);
   
-          // ===== Pivot Relationship -> short form + color =====
+          // ===== Pivot Relationship (short form + color) =====
           const tdRel = document.createElement('td');
           const relMap = {
             'Higher Value': 'HV',
@@ -88,25 +83,23 @@
           const shortRel = relMap[rel] || (rel || '');
           tdRel.textContent = shortRel;
   
-          // color coding: HV/OHV green, LV/OLV red, IV blue, OV/NC gray
-          const sr = shortRel;
-          if (sr === 'HV' || sr === 'OHV') {
+          if (shortRel === 'HV' || shortRel === 'OHV') {
             tdRel.style.color = 'limegreen';
             tdRel.style.fontWeight = '700';
-          } else if (sr === 'LV' || sr === 'OLV') {
+          } else if (shortRel === 'LV' || shortRel === 'OLV') {
             tdRel.style.color = 'red';
             tdRel.style.fontWeight = '700';
-          } else if (sr === 'IV') {
+          } else if (shortRel === 'IV') {
             tdRel.style.color = 'deepskyblue';
             tdRel.style.fontWeight = '700';
-          } else if (sr === 'OV' || sr === 'NC') {
+          } else if (shortRel === 'OV' || shortRel === 'NC') {
             tdRel.style.color = 'gray';
             tdRel.style.fontWeight = '700';
           }
           if (shortRel) tdRel.classList.add('emphasis');
           tr.appendChild(tdRel);
   
-          // ===== Mid-point with inline (±diff to current price) + blink on tolerance =====
+          // ===== Mid-point =====
           const tdMid = document.createElement('td');
           const midVal   = isNum(midRaw)   ? num(midRaw)   : null;
           const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
@@ -122,12 +115,10 @@
             } else {
               tdMid.textContent = fmt2(midVal);
             }
-          } else {
-            tdMid.textContent = '';
           }
           tr.appendChild(tdMid);
   
-          // ===== Open / Price (price colored vs open) =====
+          // ===== Open / Price =====
           const tdOpen = document.createElement('td');
           const openVal = isNum(openRaw) ? num(openRaw) : null;
   
@@ -148,13 +139,13 @@
           }
           tr.appendChild(tdOpen);
   
-          // ===== Pivot Levels: two-line text per pivot, separated by pipes =====
+          // ===== Pivot Levels (sorted ascending, text two-line blocks) =====
           const tdLevels = document.createElement('td');
-          tdLevels.innerHTML = ''; // ensure clean slate
+          tdLevels.innerHTML = '';
   
           const pl = r.pivotLevels || null;
           if (pl) {
-            const levels = [
+            let levels = [
               { key: 'R5', val: pl.R5 },
               { key: 'R4', val: pl.R4 },
               { key: 'R3', val: pl.R3 },
@@ -166,15 +157,15 @@
               { key: 'S3', val: pl.S3 },
               { key: 'S4', val: pl.S4 },
               { key: 'S5', val: pl.S5 },
-            ];
+            ].filter(l => isNum(l.val));
   
-            // ---- New text layout ----
+            // sort ascending by price
+            levels.sort((a, b) => a.val - b.val);
+  
             const row = document.createElement('div');
             row.className = 'pivot-text-row';
   
             levels.forEach((lvl, idx) => {
-              if (lvl.val == null) return;
-  
               const block = document.createElement('span');
               block.className = 'pivot-text-block';
   
@@ -190,13 +181,7 @@
               block.appendChild(line2);
               row.appendChild(block);
   
-              // add pipe separator between blocks (except after last)
-              // find next available (non-null) index to avoid trailing pipe when some values are missing
-              let hasNext = false;
-              for (let j = idx + 1; j < levels.length; j++) {
-                if (levels[j].val != null) { hasNext = true; break; }
-              }
-              if (hasNext) {
+              if (idx < levels.length - 1) {
                 const sep = document.createElement('span');
                 sep.className = 'pivot-text-sep';
                 sep.textContent = ' | ';
@@ -206,35 +191,24 @@
   
             tdLevels.appendChild(row);
   
-            /* ===== Previous "circles" UI (kept for reference; commented out) =====
+            /* ===== Old circle UI (kept, commented out) =====
             const container = document.createElement('div');
             container.className = 'pivot-circles';
             for (const lvl of levels) {
-              if (lvl.val == null) continue;
               const wrapper = document.createElement('div');
               wrapper.className = 'circle-wrapper';
               const circle = document.createElement('div');
               circle.className = 'circle';
-              circle.textContent = lvl.key;   // label INSIDE circle
+              circle.textContent = lvl.key;
               const price = document.createElement('div');
               price.className = 'circle-price';
-              price.textContent = fmt2(lvl.val); // price BELOW circle
+              price.textContent = fmt2(lvl.val);
               wrapper.appendChild(circle);
               wrapper.appendChild(price);
               container.appendChild(wrapper);
             }
             tdLevels.appendChild(container);
-            ===== end circles UI ===== */
-          } else {
-            // fallback for very old payloads (CPR only)
-            const pP  = (r.P  != null) ? r.P  : undefined;
-            const pBC = (r.BC != null) ? r.BC : undefined;
-            const pTC = (r.TC != null) ? r.TC : undefined;
-            const parts = [];
-            if (pTC !== undefined) parts.push(`TC ${fmt2(pTC)}`);
-            if (pP  !== undefined) parts.push(`P ${fmt2(pP)}`);
-            if (pBC !== undefined) parts.push(`BC ${fmt2(pBC)}`);
-            tdLevels.textContent = parts.join(' | ');
+            ===== end old UI ===== */
           }
           tr.appendChild(tdLevels);
   

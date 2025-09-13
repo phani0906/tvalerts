@@ -10,7 +10,6 @@ const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
 const { getQuoteCached } = require('./utils/quoteService');
 
-
 // ---- utils ----
 const tvWebhookRouterFactory = require('./utils/tvWebhook');
 const { initAlertHandler }   = require('./utils/alertHandler');
@@ -37,6 +36,24 @@ const PIVOT_TICKERS = (process.env.PIVOT_TICKERS || 'NVDA,AMD,TSLA,AAPL,MSFT')
 const FAST_PRICE_MS  = Number(process.env.MD_FAST_MS || 5000);    // ~5s
 const SLOW_METRIC_MS = Number(process.env.MD_SLOW_MS || 60000);   // ~60s
 
+// ===== Blink tolerances exposed to the client (configure these in Render) =====
+const TOLERANCE = {
+  // 5m
+  ma20_5m:    Number(process.env.TOL_MA20_5M    || 0.5),
+  vwap_5m:    Number(process.env.TOL_VWAP_5M    || 0.5),
+  daymid_5m:  Number(process.env.TOL_DAYMID_5M  || 1.0),
+  // 15m
+  ma20_15m:   Number(process.env.TOL_MA20_15M   || 1.0),
+  vwap_15m:   Number(process.env.TOL_VWAP_15M   || 1.0),
+  daymid_15m: Number(process.env.TOL_DAYMID_15M || 1.0),
+  // 1h
+  ma20_1h:    Number(process.env.TOL_MA20_1H    || 2.0),
+  vwap_1h:    Number(process.env.TOL_VWAP_1H    || 2.0),
+  daymid_1h:  Number(process.env.TOL_DAYMID_1H  || 1.0),
+  // Pivot panel midpoint tolerance
+  pivot_mid:  Number(process.env.TOL_PIVOT_MID  || 1.0)
+};
+
 // Ensure data dir is writable
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -61,6 +78,7 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'scanner.html'));
 });
 
+// Latest pivot snapshot for initial paint
 app.get('/pivot/latest', (_req, res) => {
   try {
     res.json(getPivotSnapshot() || []);
@@ -69,6 +87,8 @@ app.get('/pivot/latest', (_req, res) => {
   }
 });
 
+// Expose blink tolerances to client
+app.get('/tolerance', (_req, res) => res.json(TOLERANCE));
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -79,7 +99,7 @@ app.get('/health', (_req, res) => {
     tfs: TFS,
     fastMs: FAST_PRICE_MS,
     slowMs: SLOW_METRIC_MS,
-    pivotTickers: PIVOT_TICKERS // helpful to confirm what the pivot panel is tracking
+    pivotTickers: PIVOT_TICKERS
   });
 });
 
@@ -91,7 +111,10 @@ app.use('/', tvWebhookRouterFactory(io, { tvSecret: TV_SECRET, dataDir: DATA_DIR
 
 // ================== Market Data (dual cadence) ==================
 // Emits full snapshot objects on every pass (fast price, slow metrics).
-startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
+// Stagger start so pivot paints first.
+setTimeout(() => {
+  startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
+}, Number(process.env.MD_STAGGER_MS || 1500));
 
 // ================== Pivot/CPR Updater (fixed tickers) ==================
 // Emits: io.emit('pivotUpdate', rows) consumed by public/pivotPanel.js
@@ -104,11 +127,6 @@ startPivotUpdater(io, {
     .filter(Boolean),
   // symbolsFile: path.join(__dirname, 'config', 'pivot-tickers.txt'), // optional
 });
-
-// Slightly delay heavier streams so pivot paints first
-setTimeout(() => {
-  startMarketDataUpdater(io, { dataDir: DATA_DIR, fastMs: FAST_PRICE_MS, slowMs: SLOW_METRIC_MS });
-}, Number(process.env.MD_STAGGER_MS || 1500));
 
 // ================== Debug helper ==================
 // GET /debug/price?t=NVDA
@@ -132,7 +150,6 @@ app.get('/quote', async (_req, res) => {
     res.status(500).json({ error: e.message || String(e) });
   }
 });
-
 
 // ================== Admin cleanup ==================
 // POST /admin/cleanup?key=ADMIN_SECRET

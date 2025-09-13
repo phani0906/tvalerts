@@ -9,10 +9,31 @@
       BEAR_REV:  'Bearish Trend Reversal'
     };
   
+    // ===== Tolerance (fetched from server /tolerance; fallback defaults) =====
+    let TOL = { pivot_mid: 1.0 };
+    (async function loadTol() {
+      try {
+        const r = await fetch('/tolerance', { cache: 'no-store' });
+        if (r.ok) TOL = Object.assign(TOL, await r.json());
+        // Expose for quick tweaking from console
+        window.PIVOT_TOLERANCE = TOL;
+      } catch { /* keep defaults */ }
+    })();
+  
     function fmt2(v) {
       if (v == null || v === '') return '';
       const n = Number(v);
       return Number.isNaN(n) ? '' : n.toFixed(2);
+    }
+    const isNum = v => v != null && isFinite(Number(v));
+    const num   = v => Number(v);
+  
+    function applyNearZeroBlink(td, diff, tol) {
+      td.classList.remove('near-zero', 'blink');
+      if (!isNum(diff) || !isNum(tol)) return;
+      if (Math.abs(diff) <= Number(tol)) {
+        td.classList.add('near-zero', 'blink');
+      }
     }
   
     function renderPivotGroup(tableId, rows) {
@@ -39,20 +60,19 @@
           const rel =
             r.relationshipLabel ??
             r.pivotRelationship ??
-            r.relationship ??
-            '';
+            r.relationship ?? '';
   
-          // Mid-point may arrive under several names
+          // Mid-point (various keys)
           const midRaw =
             r.midpoint ?? r.midPoint ?? r.mid ??
             r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
   
-          // Open can arrive as strings or different keys
+          // Open and live Price
           const openRaw =
             r.open ?? r.openPrice ?? r.o ??
             r.Open ?? r.OPEN;
   
-          // Live price (added in backend)
+          // Prefer server-provided currentPrice; fall back to price/Price if present
           const priceRaw = r.currentPrice ?? r.price ?? r.Price;
   
           const tr = document.createElement('tr');
@@ -68,25 +88,25 @@
           if (rel) tdRel.classList.add('emphasis');
           tr.appendChild(tdRel);
   
-          // ---- Mid-point with (±diff to current price) ----
+          // ---- Mid-point with (±diff to current price) + blink on tolerance ----
           const tdMid = document.createElement('td');
-          const midVal   = (midRaw   != null && isFinite(Number(midRaw)))   ? Number(midRaw)   : null;
-          const priceVal = (priceRaw != null && isFinite(Number(priceRaw))) ? Number(priceRaw) : null;
+          const midVal   = isNum(midRaw)   ? num(midRaw)   : null;
+          const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
   
           if (midVal != null) {
-            // base value
             const base = document.createElement('span');
             base.textContent = fmt2(midVal);
             tdMid.appendChild(base);
   
-            // diff if we have live price
             if (priceVal != null) {
               const diff = priceVal - midVal;
               const diffSpan = document.createElement('span');
               diffSpan.className = diff >= 0 ? 'diff-up' : 'diff-down';
-              const sign = diff >= 0 ? '+' : '';
-              diffSpan.textContent = ` (${sign}${fmt2(diff)})`;
+              diffSpan.textContent = ` (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
               tdMid.appendChild(diffSpan);
+  
+              // blink if within tolerance (from env)
+              applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
             }
           } else {
             tdMid.textContent = '';
@@ -95,7 +115,7 @@
   
           // ---- Open / Price (price colored vs open) ----
           const tdOpen = document.createElement('td');
-          const openVal = (openRaw  != null && isFinite(Number(openRaw)))  ? Number(openRaw)  : null;
+          const openVal = isNum(openRaw) ? num(openRaw) : null;
   
           if (openVal != null) {
             tdOpen.appendChild(document.createTextNode(fmt2(openVal)));
@@ -131,10 +151,8 @@
   
     function paint(rows) {
       const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
-      // Row 1
       renderPivotGroup('pivotTableBullCont', bullCont);
       renderPivotGroup('pivotTableBullRev',  bullRev);
-      // Row 2
       renderPivotGroup('pivotTableBearCont', bearCont);
       renderPivotGroup('pivotTableBearRev',  bearRev);
     }

@@ -270,3 +270,6 @@ table td {
   font-size: 1em;     /* match the parent cell size */
 }
 
+#quoteBox {
+  font-size: 1.3em;   /* adjust to taste */
+}

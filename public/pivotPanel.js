@@ -99,36 +99,18 @@
           if (shortRel) tdRel.classList.add('emphasis');
           tr.appendChild(tdRel);
   
-          // ===== Mid-point =====
-          const tdMid = document.createElement('td');
-          const midVal   = isNum(midRaw)   ? num(midRaw)   : null;
-          const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
-  
-          if (midVal != null) {
-            if (priceVal != null) {
-              const diff = priceVal - midVal;
-              const span = document.createElement('span');
-              span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-              span.className = diff >= 0 ? 'diff-up' : 'diff-down';
-              tdMid.appendChild(span);
-              applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
-            } else {
-              tdMid.textContent = fmt2(midVal);
-            }
-          }
-          tr.appendChild(tdMid);
-  
-          // ===== Open / Price =====
+          // ===== Open / Price (moved BEFORE Mid-point) =====
           const tdOpen = document.createElement('td');
           const openVal = isNum(openRaw) ? num(openRaw) : null;
+          const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
   
           if (openVal != null || priceVal != null) {
             // render "open / price" as two spans so we can highlight price independently
-            const openSpan = document.createElement('span');
+            const openSpan  = document.createElement('span');
             const priceSpan = document.createElement('span');
   
             if (openVal != null) {
-              openSpan.textContent = fmt2(openVal) + ' / ';
+              openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
             }
   
             if (priceVal != null) {
@@ -146,7 +128,25 @@
           }
           tr.appendChild(tdOpen);
   
-          // ===== Pivot Levels (sorted ascending, text two-line blocks) =====
+          // ===== Mid-point (now AFTER Open/Price) =====
+          const tdMid = document.createElement('td');
+          const midVal = isNum(midRaw) ? num(midRaw) : null;
+  
+          if (midVal != null) {
+            if (priceVal != null) {
+              const diff = priceVal - midVal;
+              const span = document.createElement('span');
+              span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
+              span.className = diff >= 0 ? 'diff-up' : 'diff-down';
+              tdMid.appendChild(span);
+              applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
+            } else {
+              tdMid.textContent = fmt2(midVal);
+            }
+          }
+          tr.appendChild(tdMid);
+  
+          // ===== Pivot Levels (sorted ascending, two-line blocks with pipes) =====
           const tdLevels = document.createElement('td');
           tdLevels.innerHTML = '';
   
@@ -180,7 +180,7 @@
                   break;
                 }
               }
-              // if price equals an endpoint outside range, highlight nearest pair sensibly
+              // endpoints: if price below min or above max, highlight nearest pair
               if (leftIdx === -1 && priceVal < levels[0].val && levels.length >= 2) {
                 leftIdx = 0; rightIdx = 1;
               }
@@ -225,7 +225,6 @@
   
             // also force the current price (in Open/Price col) to green if we found a bracket
             if (leftIdx !== -1 && rightIdx !== -1) {
-              // price is the second span inside tdOpen
               const priceSpan = tdOpen.querySelector('span:last-child');
               if (priceSpan) {
                 priceSpan.classList.add('pivot-hl-price');

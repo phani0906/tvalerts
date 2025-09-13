@@ -82,10 +82,40 @@
                 tr.appendChild(tdTicker);
 
                 // Pivot Relationship
+                // Pivot Relationship -> short form + color
                 const tdRel = document.createElement('td');
-                tdRel.textContent = rel || '';
-                if (rel) tdRel.classList.add('emphasis');
+
+                const relMap = {
+                    'Higher Value': 'HV',
+                    'Overlapping Higher Value': 'OHV',
+                    'Lower Value': 'LV',
+                    'Overlapping Lower Value': 'OLV',
+                    'Inner Value': 'IV',
+                    'Outside Value': 'OV',
+                    'No change': 'NC',
+                    'No Change': 'NC',
+                    'Nochange': 'NC'
+                };
+
+                const shortRel = relMap[rel] || (rel || '');
+
+                tdRel.textContent = shortRel;
+
+                // color coding: HV/OHV green, LV/OLV red, IV blue, OV/NC grey
+                const sr = shortRel;
+                if (sr === 'HV' || sr === 'OHV') {
+                    tdRel.style.color = 'green';
+                } else if (sr === 'LV' || sr === 'OLV') {
+                    tdRel.style.color = 'red';
+                } else if (sr === 'IV') {
+                    tdRel.style.color = 'blue';
+                } else if (sr === 'OV' || sr === 'NC') {
+                    tdRel.style.color = 'gray';
+                }
+
+                if (shortRel) tdRel.classList.add('emphasis');
                 tr.appendChild(tdRel);
+
 
                 // ---- Mid-point with inline (±diff to current price) + blink on tolerance ----
                 const tdMid = document.createElement('td');

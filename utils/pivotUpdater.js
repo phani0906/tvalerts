@@ -193,7 +193,8 @@ async function buildRows(tickers, relTol, trendTol) {
         trend,
         midPoint,
         openPrice: live.open,
-        currentPrice: live.price   // 👈 add this
+        currentPrice: live.price,
+        pivotLevels: todayCpr
       });      
   }
   return rows;

@@ -88,25 +88,24 @@
           if (rel) tdRel.classList.add('emphasis');
           tr.appendChild(tdRel);
   
-          // ---- Mid-point with (±diff to current price) + blink on tolerance ----
+          // ---- Mid-point with inline (±diff to current price) + blink on tolerance ----
           const tdMid = document.createElement('td');
           const midVal   = isNum(midRaw)   ? num(midRaw)   : null;
           const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
   
           if (midVal != null) {
-            const base = document.createElement('span');
-            base.textContent = fmt2(midVal);
-            tdMid.appendChild(base);
-  
             if (priceVal != null) {
               const diff = priceVal - midVal;
-              const diffSpan = document.createElement('span');
-              diffSpan.className = diff >= 0 ? 'diff-up' : 'diff-down';
-              diffSpan.textContent = ` (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-              tdMid.appendChild(diffSpan);
+              // single inline span so it renders as: "100.54 (+4.53)"
+              const span = document.createElement('span');
+              span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
+              span.className = diff >= 0 ? 'diff-up' : 'diff-down';
+              tdMid.appendChild(span);
   
               // blink if within tolerance (from env)
               applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
+            } else {
+              tdMid.textContent = fmt2(midVal);
             }
           } else {
             tdMid.textContent = '';
@@ -118,15 +117,19 @@
           const openVal = isNum(openRaw) ? num(openRaw) : null;
   
           if (openVal != null) {
-            tdOpen.appendChild(document.createTextNode(fmt2(openVal)));
-          }
-          if (priceVal != null) {
-            const s = document.createElement('span');
-            s.textContent = ` / ${fmt2(priceVal)}`;
-            if (openVal != null) {
+            if (priceVal != null) {
+              const s = document.createElement('span');
+              s.textContent = `${fmt2(openVal)} / ${fmt2(priceVal)}`;
               if (priceVal > openVal) s.style.color = 'limegreen';
               else if (priceVal < openVal) s.style.color = 'red';
+              tdOpen.appendChild(s);
+            } else {
+              tdOpen.textContent = fmt2(openVal);
             }
+          } else if (priceVal != null) {
+            // if open missing but price exists, still show price
+            const s = document.createElement('span');
+            s.textContent = fmt2(priceVal);
             tdOpen.appendChild(s);
           }
           tr.appendChild(tdOpen);

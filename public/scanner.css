@@ -152,7 +152,7 @@ td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; 
 
 /* Make the (±diff) show even with table-layout:fixed */
 .diff-up, .diff-down {
-  display: block;           /* put diff on its own line to avoid clipping */
+  display: inline;           /* put diff on its own line to avoid clipping */
   white-space: normal;      /* allow wrapping inside the span */
   overflow: visible;        /* don't clip the diff text */
   text-overflow: clip;      /* disable ellipsis for the diff span */

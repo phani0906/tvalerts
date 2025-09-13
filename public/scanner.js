@@ -54,29 +54,23 @@ function fillMetricCell(td, metricVal, price, tolerance) {
 
   const m = toNum(metricVal);
   const p = toNum(price);
-
-  // If metric is missing, show nothing
   if (m === null) return;
 
-  // If price missing, show metric only
   if (p === null) { td.textContent = fmt2(m); return; }
 
-  // Both present → show value + diff
   const diff = p - m;
-  const base = document.createElement('span');
-  base.textContent = fmt2(m);
 
-  const wrap = document.createElement('span');
-  wrap.className = diff >= 0 ? 'diff-up' : 'diff-down';
-  wrap.textContent = ` (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-
-  td.appendChild(base);
-  td.appendChild(wrap);
+  // Show value + diff in one line
+  const span = document.createElement('span');
+  span.textContent = `${fmt2(m)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
+  span.className = diff >= 0 ? 'diff-up' : 'diff-down';
+  td.appendChild(span);
 
   if (tolerance != null && Math.abs(diff) <= tolerance) {
     td.classList.add('near-zero','blink');
   }
 }
+
 
 function normalizeRow(row) {
   const r = { ...row };

@@ -141,14 +141,17 @@ function renderFifteenMinTable() {
 
     let td = document.createElement('td'); td.textContent = formatTime(a.Time); row.appendChild(td);
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
+    // ALERT (now before Price to match headers)
     td = document.createElement('td');
     const alertVal = a.AI_15m || a.Alert || '';
     td.textContent = alertVal;
     if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
+
+    // PRICE
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
     td = document.createElement('td'); fillMetricCell(td, p.MA20_15m, p.Price, TOLERANCE.ma20_15m); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_15m, p.Price, TOLERANCE.vwap_15m); row.appendChild(td);
@@ -157,6 +160,7 @@ function renderFifteenMinTable() {
     ((alertVal || '').toLowerCase() === 'buy' ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 function renderOneHrTable() {
   const buyTbody  = document.querySelector('#scannerTableBuy1h tbody');
@@ -171,14 +175,17 @@ function renderOneHrTable() {
 
     let td = document.createElement('td'); td.textContent = formatTime(a.Time); row.appendChild(td);
     td = document.createElement('td'); td.textContent = tkr; row.appendChild(td);
-    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
+    // ALERT (now before Price to match headers)
     td = document.createElement('td');
     const alertVal = a.AI_1h || a.Alert || '';
     td.textContent = alertVal;
     if ((alertVal || '').toLowerCase() === 'buy')  td.classList.add('signal-buy');
     if ((alertVal || '').toLowerCase() === 'sell') td.classList.add('signal-sell');
     row.appendChild(td);
+
+    // PRICE
+    td = document.createElement('td'); td.textContent = fmt2(toNum(p.Price)); row.appendChild(td);
 
     td = document.createElement('td'); fillMetricCell(td, p.MA20_1h, p.Price, TOLERANCE.ma20_1h); row.appendChild(td);
     td = document.createElement('td'); fillMetricCell(td, p.VWAP_1h, p.Price, TOLERANCE.vwap_1h); row.appendChild(td);
@@ -187,6 +194,7 @@ function renderOneHrTable() {
     ((alertVal || '').toLowerCase() === 'buy' ? buyTbody : sellTbody).appendChild(row);
   });
 }
+
 
 /* ========= Socket wiring ========= */
 socket.on('alertsUpdate:AI_5m', rows => {
@@ -241,20 +249,19 @@ async function loadQuote() {
     const r = await fetch('/quote', { cache: 'no-store' });
     if (!r.ok) throw new Error('quote http ' + r.status);
     const { text, author } = await r.json();
-    const box = document.getElementById('quoteBox');
-    if (box) {
-      box.innerHTML = '';
-      const q = document.createElement('div');
-      q.textContent = text || '';
-      const a = document.createElement('small');
-      a.textContent = author ? `— ${author}` : '';
-      box.appendChild(q);
-      box.appendChild(a);
+    const el = document.getElementById('quote-text');
+    if (el) {
+      el.textContent = author ? `${text} — ${author}` : (text || '');
     }
-  } catch (_e) {
-    // Optional: leave prior quote or noop
+  } catch (e) {
+    const el = document.getElementById('quote-text');
+    if (el) el.textContent = 'Trade your plan. Manage risk. Stay patient.';
+    console.warn('quote load failed', e);
   }
 }
+loadQuote();
+setInterval(loadQuote, 60 * 60 * 1000);
+
 
 function msUntilTopOfHour() {
   const now = new Date();

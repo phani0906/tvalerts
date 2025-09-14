@@ -287,7 +287,7 @@ table td {
 #pivotTableBullCont td:nth-child(1),
 #pivotTableBullRev td:nth-child(1),
 #pivotTableBearCont td:nth-child(1),
-#pivotTableBearRev td:nth-child(1) { width: 8%; }
+#pivotTableBearRev td:nth-child(1) { width: 6%; }
 
 /* Rel */
 #pivotTableBullCont th:nth-child(2),
@@ -307,7 +307,7 @@ table td {
 #pivotTableBullCont td:nth-child(3),
 #pivotTableBullRev td:nth-child(3),
 #pivotTableBearCont td:nth-child(3),
-#pivotTableBearRev td:nth-child(3) { width: 14%; }
+#pivotTableBearRev td:nth-child(3) { width: 10%; }
 
 /* Mid-point */
 #pivotTableBullCont th:nth-child(4),
@@ -317,7 +317,7 @@ table td {
 #pivotTableBullCont td:nth-child(4),
 #pivotTableBullRev td:nth-child(4),
 #pivotTableBearCont td:nth-child(4),
-#pivotTableBearRev td:nth-child(4) { width: 14%; }
+#pivotTableBearRev td:nth-child(4) { width: 10%; }
 
 /* Daily MA20 */
 #pivotTableBullCont th:nth-child(5),
@@ -327,7 +327,7 @@ table td {
 #pivotTableBullCont td:nth-child(5),
 #pivotTableBullRev td:nth-child(5),
 #pivotTableBearCont td:nth-child(5),
-#pivotTableBearRev td:nth-child(5) { width: 12%; }
+#pivotTableBearRev td:nth-child(5) { width: 10%; }
 
 /* Pivot Levels (takes the rest) */
 #pivotTableBullCont th:nth-child(6),

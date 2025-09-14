@@ -279,7 +279,7 @@ table td {
 .rel-blue  { color: #1E90FF; font-weight: bold; }
 .rel-gray  { color: #A9A9A9; font-weight: bold; }
 
-/* Pivot table column widths */
+/* Ticker */
 #pivotTableBullCont th:nth-child(1),
 #pivotTableBullRev th:nth-child(1),
 #pivotTableBearCont th:nth-child(1),
@@ -287,10 +287,9 @@ table td {
 #pivotTableBullCont td:nth-child(1),
 #pivotTableBullRev td:nth-child(1),
 #pivotTableBearCont td:nth-child(1),
-#pivotTableBearRev td:nth-child(1) {
-  width: 8%;   /* Ticker */
-}
+#pivotTableBearRev td:nth-child(1) { width: 8%; }
 
+/* Rel */
 #pivotTableBullCont th:nth-child(2),
 #pivotTableBullRev th:nth-child(2),
 #pivotTableBearCont th:nth-child(2),
@@ -298,10 +297,9 @@ table td {
 #pivotTableBullCont td:nth-child(2),
 #pivotTableBullRev td:nth-child(2),
 #pivotTableBearCont td:nth-child(2),
-#pivotTableBearRev td:nth-child(2) {
-  width: 10%;  /* Rel */
-}
+#pivotTableBearRev td:nth-child(2) { width: 10%; }
 
+/* Open/Price */
 #pivotTableBullCont th:nth-child(3),
 #pivotTableBullRev th:nth-child(3),
 #pivotTableBearCont th:nth-child(3),
@@ -309,10 +307,9 @@ table td {
 #pivotTableBullCont td:nth-child(3),
 #pivotTableBullRev td:nth-child(3),
 #pivotTableBearCont td:nth-child(3),
-#pivotTableBearRev td:nth-child(3) {
-  width: 14%;  /* Mid-point */
-}
+#pivotTableBearRev td:nth-child(3) { width: 14%; }
 
+/* Mid-point */
 #pivotTableBullCont th:nth-child(4),
 #pivotTableBullRev th:nth-child(4),
 #pivotTableBearCont th:nth-child(4),
@@ -320,10 +317,9 @@ table td {
 #pivotTableBullCont td:nth-child(4),
 #pivotTableBullRev td:nth-child(4),
 #pivotTableBearCont td:nth-child(4),
-#pivotTableBearRev td:nth-child(4) {
-  width: 14%;  /* Open/Price */
-}
+#pivotTableBearRev td:nth-child(4) { width: 14%; }
 
+/* Daily MA20 */
 #pivotTableBullCont th:nth-child(5),
 #pivotTableBullRev th:nth-child(5),
 #pivotTableBearCont th:nth-child(5),
@@ -331,9 +327,17 @@ table td {
 #pivotTableBullCont td:nth-child(5),
 #pivotTableBullRev td:nth-child(5),
 #pivotTableBearCont td:nth-child(5),
-#pivotTableBearRev td:nth-child(5) {
-  width: auto; /* Pivot Levels takes the rest */
-}
+#pivotTableBearRev td:nth-child(5) { width: 12%; }
+
+/* Pivot Levels (takes the rest) */
+#pivotTableBullCont th:nth-child(6),
+#pivotTableBullRev th:nth-child(6),
+#pivotTableBearCont th:nth-child(6),
+#pivotTableBearRev th:nth-child(6),
+#pivotTableBullCont td:nth-child(6),
+#pivotTableBullRev td:nth-child(6),
+#pivotTableBearCont td:nth-child(6),
+#pivotTableBearRev td:nth-child(6) { width: auto; }
 
 /* Pivot Levels layout */
 .pivot-circles {
@@ -437,12 +441,14 @@ table td {
   border-radius: 999px;
   font-size: 0.75em;
   font-weight: 700;
-  letter-spacing: .2px;
-  vertical-align: middle;
   border: 1px solid rgba(255,255,255,0.25);
   background: transparent;
   color: #ddd;
 }
+.cpr-narrow { background: #ffd54f; color: #000; border-color: #ffd54f; }
+.cpr-wide   { background: #374151; color: #fff; border-color: #4b5563; }
+.cpr-normal { background: transparent; color: #bbb; border-color: #666; }
+
 
 .cpr-narrow {
   background: #ffd54f;     /* gold */

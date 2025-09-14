@@ -170,6 +170,24 @@
                 }
                 tr.appendChild(tdMid);
 
+                // ===== Daily MA20 (with % diff vs current price) =====
+                const tdMA = document.createElement('td');
+                const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
+
+                if (maVal != null) {
+                    if (priceVal != null && maVal !== 0) {
+                        const pct = ((priceVal - maVal) / maVal) * 100;
+                        const span = document.createElement('span');
+                        span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+                        span.className = pct >= 0 ? 'diff-up' : 'diff-down';
+                        tdMA.appendChild(span);
+                    } else {
+                        tdMA.textContent = fmt2(maVal);
+                    }
+                }
+                tr.appendChild(tdMA);
+
+
                 // ===== Pivot Levels (sorted ascending, two-line blocks with pipes) =====
                 const tdLevels = document.createElement('td');
                 tdLevels.innerHTML = '';

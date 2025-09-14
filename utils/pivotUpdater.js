@@ -165,6 +165,18 @@ async function fetchLivePriceOpen(ticker) {
   return out;
 }
 
+async function fetchDailyMA20(ticker) {
+    const period2 = new Date();
+    const period1 = new Date(Date.now() - 120 * 24 * 3600 * 1000); // ~6 months buffer
+    const rows = await yahooFinance.historical(ticker, { period1, period2, interval: '1d' });
+    const closes = (rows || []).map(r => r?.close).filter(isNum);
+    if (closes.length < 20) return null;
+    const last20 = closes.slice(-20);
+    const ma = last20.reduce((a,b) => a + b, 0) / last20.length;
+    return +ma.toFixed(2);
+  }
+  
+
 const priorDayMid = (H, L) => (isNum(H) && isNum(L)) ? +(((H + L) / 2).toFixed(2)) : null;
 
 /* =========================
@@ -180,7 +192,12 @@ async function buildRows(tickers) {
 
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
-    const [dailies, live] = await Promise.all([fetchPrev3DailyBars(t), fetchLivePriceOpen(t)]);
+    const [dailies, live, ma20Daily] = await Promise.all([
+        fetchPrev3DailyBars(t),
+        fetchLivePriceOpen(t),
+        fetchDailyMA20(t)
+      ]);
+      
 
     let relationship = 'Unknown';
     let midPoint = null;
@@ -210,21 +227,19 @@ async function buildRows(tickers) {
     }
 
     rows.push({
-      ts,
-      ticker: t,
-      pivotRelationship: relationship,
-      trend,
-      midPoint,
-      openPrice: live.open,
-      currentPrice: live.price,
-      pivotLevels: pivotSuite,
-      pivotLevelsText: pivotSuite ? pivotSuite.text : '',
-      // New CPR fields for UI badges/tooltips
-      cprWidth,
-      cprRank,
-      cprPercentile,
-      cprClass
-    });
+        ts,
+        ticker: t,
+        pivotRelationship: relationship,
+        trend,
+        midPoint,
+        openPrice: live.open,
+        currentPrice: live.price,
+        pivotLevels: pivotSuite,
+        pivotLevelsText: pivotSuite ? pivotSuite.text : '',
+        cprWidth, cprRank, cprPercentile, cprClass,
+        ma20Daily                    
+      });
+      
   }
 
   return rows;

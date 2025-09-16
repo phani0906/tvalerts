@@ -90,16 +90,16 @@
                 const w = r.cprWidth, rk = r.cprRank, pct = r.cprPercentile;
                 if (w != null) {
                     const pctTxt = (pct != null) ? ` • pct ${(pct * 100).toFixed(0)}%` : '';
-                    const rkTxt  = (rk != null)  ? ` • rank ${rk}/10` : '';
+                    const rkTxt = (rk != null) ? ` • rank ${rk}/10` : '';
                     badge.title = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
                 }
                 tdRel.appendChild(document.createTextNode(' '));
                 tdRel.appendChild(badge);
 
-                if (shortRel === 'HV' || shortRel === 'OHV')       { tdRel.style.color = 'limegreen'; tdRel.style.fontWeight = '700'; }
-                else if (shortRel === 'LV' || shortRel === 'OLV')  { tdRel.style.color = 'red';       tdRel.style.fontWeight = '700'; }
-                else if (shortRel === 'IV')                        { tdRel.style.color = 'deepskyblue'; tdRel.style.fontWeight = '700'; }
-                else if (shortRel === 'OV' || shortRel === 'NC')   { tdRel.style.color = 'gray';      tdRel.style.fontWeight = '700'; }
+                if (shortRel === 'HV' || shortRel === 'OHV') { tdRel.style.color = 'limegreen'; tdRel.style.fontWeight = '700'; }
+                else if (shortRel === 'LV' || shortRel === 'OLV') { tdRel.style.color = 'red'; tdRel.style.fontWeight = '700'; }
+                else if (shortRel === 'IV') { tdRel.style.color = 'deepskyblue'; tdRel.style.fontWeight = '700'; }
+                else if (shortRel === 'OV' || shortRel === 'NC') { tdRel.style.color = 'gray'; tdRel.style.fontWeight = '700'; }
 
                 if (shortRel) tdRel.classList.add('emphasis');
                 tr.appendChild(tdRel);
@@ -152,11 +152,15 @@
                         span.textContent = `${fmt2(pdhVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
                         span.className = diff >= 0 ? 'diff-up' : 'diff-down';
                         tdPDH.appendChild(span);
+
+                        // 👇 Blink when price is within tolerance of PDH (same tol as Mid-point)
+                        applyNearZeroBlink(tdPDH, diff, TOL.pivot_mid);
                     } else {
                         tdPDH.textContent = fmt2(pdhVal);
                     }
                 }
                 tr.appendChild(tdPDH);
+
 
                 // ===== Daily MA20 =====
                 const tdMA = document.createElement('td');
@@ -182,11 +186,11 @@
                         { key: 'R5', val: pl.R5 },
                         { key: 'R4', val: pl.R4 },
                         { key: 'R3', val: pl.R3 },
-                        { key: 'H',  val: pl.prevHigh },
+                        { key: 'H', val: pl.prevHigh },
                         { key: 'TC', val: pl.TC },
-                        { key: 'P',  val: pl.P },
+                        { key: 'P', val: pl.P },
                         { key: 'BC', val: pl.BC },
-                        { key: 'L',  val: pl.prevLow },
+                        { key: 'L', val: pl.prevLow },
                         { key: 'S3', val: pl.S3 },
                         { key: 'S4', val: pl.S4 },
                         { key: 'S5', val: pl.S5 },
@@ -256,8 +260,8 @@
         return {
             bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
             bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-            bullRev:  list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-            bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
+            bullRev: list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
+            bearRev: list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
         };
     }
 

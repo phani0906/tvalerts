@@ -19,18 +19,16 @@
       } catch {}
     })();
   
-    // ===== Live touch flags map (from priceUpdate) =====
-    const TOUCH = new Map(); // ticker -> { mid:boolean, pdh:boolean }
+    // ===== Live touch flags & pivot cache =====
+    const TOUCH = new Map();           // ticker -> { mid:boolean, pdh:boolean }
+    let LAST_PIVOT_ROWS = [];          // cache latest rows so we can repaint on price updates
   
-    socket.on('priceUpdate', (snapshot) => {
-      if (!snapshot || typeof snapshot !== 'object') return;
-      for (const [t, data] of Object.entries(snapshot)) {
-        TOUCH.set(t, {
-          mid: !!data.TouchMid,
-          pdh: !!data.TouchPDH
-        });
+    // repaint helper after we update TOUCH
+    function repaintIfPossible() {
+      if (Array.isArray(LAST_PIVOT_ROWS) && LAST_PIVOT_ROWS.length) {
+        paint(LAST_PIVOT_ROWS);
       }
-    });
+    }
   
     // ===== utils =====
     function fmt2(v) {
@@ -55,7 +53,7 @@
       return s;
     }
   
-    // ===== painter =====
+    // ===== table painter =====
     function renderPivotGroup(tableId, rows) {
       try {
         const table = document.getElementById(tableId);
@@ -307,14 +305,31 @@
       renderPivotGroup('pivotTableBearRev',  bearRev);
     }
   
-    // Initial snapshot + live updates
+    // ===== initial boot =====
     (async function boot() {
       try {
         const r = await fetch('/pivot/latest', { cache: 'no-store' });
-        const rows = await r.json();
-        paint(rows);
+        LAST_PIVOT_ROWS = await r.json();
+        paint(LAST_PIVOT_ROWS);
       } catch {}
     })();
-    socket.on('pivotUpdate', paint);
+  
+    // ===== sockets =====
+    socket.on('pivotUpdate', (rows) => {
+      LAST_PIVOT_ROWS = Array.isArray(rows) ? rows : [];
+      paint(LAST_PIVOT_ROWS);
+    });
+  
+    socket.on('priceUpdate', (snapshot) => {
+      if (!snapshot || typeof snapshot !== 'object') return;
+      for (const [t, data] of Object.entries(snapshot)) {
+        TOUCH.set(t, {
+          mid: !!data.TouchMid,
+          pdh: !!data.TouchPDH
+        });
+      }
+      // ✅ repaint so ticks show up immediately
+      repaintIfPossible();
+    });
   })();
   

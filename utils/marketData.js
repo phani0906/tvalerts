@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const yahooFinance = require('yahoo-finance2').default; // keep for price + daily history only
+const yahooFinance = require('yahoo-finance2').default; // daily + quote summary
 
 // -------------------- small helpers --------------------
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
@@ -28,17 +28,17 @@ function dayKeyWithOffset(dateObj, gmtoffsetSec) {
 }
 
 // Compute session-only VWAP from bars using typical price
-function sessionVWAP(bars, gmtoffsetSec) {
+function sessionVWAP(bars, gmtoffsetSec, regStartSec, regEndSec) {
   if (!Array.isArray(bars) || bars.length === 0) return null;
-
-  const lastBar = bars[bars.length - 1];
-  const lastKey = dayKeyWithOffset(lastBar.date, gmtoffsetSec);
-  if (!lastKey) return null;
 
   let pv = 0, vol = 0;
   for (const b of bars) {
-    const key = dayKeyWithOffset(b.date, gmtoffsetSec);
-    if (key !== lastKey) continue; // only today's session
+    const tsec = Math.floor(b.date.getTime() / 1000);
+    const inRegular = regStartSec && regEndSec
+      ? (tsec >= regStartSec && tsec <= regEndSec)
+      : isRegularLocal(tsec, gmtoffsetSec);
+
+    if (!inRegular) continue;
 
     const h = num(b.high), l = num(b.low), c = num(b.close), v = num(b.volume);
     if (!isNum(v) || v <= 0) continue;
@@ -53,7 +53,7 @@ function sessionVWAP(bars, gmtoffsetSec) {
   return pv / vol;
 }
 
-// Rolling VWAP fallback (last N bars)
+// Rolling VWAP fallback (last N bars, any session)
 function rollingVWAP(bars, n = 20) {
   if (!Array.isArray(bars) || bars.length === 0) return null;
   const start = Math.max(0, bars.length - n);
@@ -73,7 +73,7 @@ function rollingVWAP(bars, n = 20) {
 
 // -------------------- intraday fetch (range-only via native fetch) --------------------
 /**
- * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec }
+ * cache[ticker][key] = { ts, closes, bars, gmtoffsetSec, regStartSec, regEndSec }
  * key: '5m' | '15m' | '1h'
  */
 const cache = {};
@@ -118,8 +118,6 @@ async function fetchYahooChart(ticker, { interval, range, includePrePost = false
       volume:indicators.volume?.[i]
     });
   }
-  const closes = (indicators.close || []).filter(isNum);
-
   return { quotes: bars, meta };
 }
 
@@ -130,12 +128,16 @@ async function fetchIntradaySeries(ticker, key) {
 
   const interval = INTERVAL[key];
   const range    = RANGE[key];
-  const includePrePost = key === '5m';
+  const includePrePost = key === '5m'; // keep pre/post for data, but we'll filter when needed
 
   const result = await fetchYahooChart(ticker, { interval, range, includePrePost });
 
   const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
+
+  const reg = result?.meta?.currentTradingPeriod?.regular || {};
+  const regStartSec = Number(reg.start) || null; // epoch seconds
+  const regEndSec   = Number(reg.end)   || null; // epoch seconds
 
   const closes = [];
   const bars   = [];
@@ -147,7 +149,7 @@ async function fetchIntradaySeries(ticker, key) {
     });
   }
 
-  const packed = { ts: nowMs, closes, bars, gmtoffsetSec };
+  const packed = { ts: nowMs, closes, bars, gmtoffsetSec, regStartSec, regEndSec };
   cache[ticker] = cache[ticker] || {};
   cache[ticker][key] = packed;
   return packed;
@@ -178,8 +180,8 @@ async function fetchMA20(ticker, key) {
 
 async function fetchVWAP(ticker, key) {
   try {
-    const { bars, gmtoffsetSec } = await fetchIntradaySeries(ticker, key);
-    let v = sessionVWAP(bars, gmtoffsetSec);
+    const { bars, gmtoffsetSec, regStartSec, regEndSec } = await fetchIntradaySeries(ticker, key);
+    let v = sessionVWAP(bars, gmtoffsetSec, regStartSec, regEndSec);
     if (v == null) v = rollingVWAP(bars, 20);
     return (v != null && isNum(v)) ? Number(v.toFixed(2)) : 'N/A';
   } catch (err) {
@@ -207,7 +209,7 @@ async function fetchPrevDayMid(ticker) {
   }
 }
 
-// NEW: previous-day high (PDH)
+// previous-day high (PDH)
 async function fetchPrevDayHigh(ticker) {
   try {
     const period2 = new Date();
@@ -224,17 +226,29 @@ async function fetchPrevDayHigh(ticker) {
   }
 }
 
-// NEW: did today's session touch a level?
-function touchedLevelToday(bars, gmtoffsetSec, level) {
+// -------- Regular session detector (fallback when meta missing) --------
+function isRegularLocal(tsec, gmtoffsetSec) {
+  // convert to exchange-local wall clock using meta gmtoffset
+  const d = new Date((tsec + (gmtoffsetSec || 0)) * 1000);
+  const hm = d.getUTCHours() * 60 + d.getUTCMinutes(); // in minutes
+  // 09:30 to 16:00 inclusive of 16:00 bar start
+  return hm >= (9 * 60 + 30) && hm <= (16 * 60);
+}
+
+// NEW: did today's REGULAR session touch a level?
+function touchedLevelToday(bars, level, { gmtoffsetSec, regStartSec, regEndSec }) {
   if (!Array.isArray(bars) || !isNum(level)) return false;
-  // derive today's session key
-  const last = bars[bars.length - 1];
-  const todayKey = last ? dayKeyWithOffset(last.date, gmtoffsetSec) : null;
-  if (!todayKey) return false;
 
   for (const b of bars) {
-    const key = dayKeyWithOffset(b.date, gmtoffsetSec);
-    if (key !== todayKey) continue;
+    const tsec = Math.floor(b.date.getTime() / 1000);
+
+    // Use Yahoo meta regular session if available; otherwise use 9:30–16:00 local.
+    const inRegular = (regStartSec && regEndSec)
+      ? (tsec >= regStartSec && tsec <= regEndSec)
+      : isRegularLocal(tsec, gmtoffsetSec);
+
+    if (!inRegular) continue;
+
     const lo = num(b.low), hi = num(b.high);
     if (!isNum(lo) || !isNum(hi)) continue;
     if (lo <= level && level <= hi) return true;
@@ -273,7 +287,7 @@ function mergeTicker(t, patch) {
   if ('MA20_1h'  in patch) assignIfNum(next, 'MA20_1h',  patch.MA20_1h);
   if ('VWAP_1h'  in patch) assignIfNum(next, 'VWAP_1h',  patch.VWAP_1h);
 
-  // NEW: booleans copy through as-is
+  // Booleans copy through as-is
   if ('TouchMid'  in patch) next.TouchMid  = !!patch.TouchMid;
   if ('TouchPDH'  in patch) next.TouchPDH  = !!patch.TouchPDH;
 
@@ -311,26 +325,42 @@ async function runMetricsPass(io, dataDir) {
 
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
-    const [ma5, vw5, ma15, vw15, mah, vwh, dayMid, pdh, series5] = await Promise.all([
-      fetchMA20(t, '5m'),  fetchVWAP(t, '5m'),
-      fetchMA20(t, '15m'), fetchVWAP(t, '15m'),
-      fetchMA20(t, '1h'),  fetchVWAP(t, '1h'),
+    const [ma5, vw5Series, ma15, vw15Series, mah, vwhSeries, dayMid, pdh, series5] = await Promise.all([
+      fetchMA20(t, '5m'),  fetchIntradaySeries(t, '5m'),
+      fetchMA20(t, '15m'), fetchIntradaySeries(t, '15m'),
+      fetchMA20(t, '1h'),  fetchIntradaySeries(t, '1h'),
       fetchPrevDayMid(t),
-      fetchPrevDayHigh(t),               // NEW
-      fetchIntradaySeries(t, '5m'),      // NEW for touch detection
+      fetchPrevDayHigh(t),
+      fetchIntradaySeries(t, '5m'),
     ]);
 
-    // NEW: touch flags
-    const touchedMid = isNum(dayMid) && touchedLevelToday(series5.bars, series5.gmtoffsetSec, dayMid);
-    const touchedPDH = isNum(pdh)    && touchedLevelToday(series5.bars, series5.gmtoffsetSec, pdh);
+    const vw5  = sessionVWAP(vw5Series.bars,  vw5Series.gmtoffsetSec,  vw5Series.regStartSec,  vw5Series.regEndSec)  ?? rollingVWAP(vw5Series.bars, 20);
+    const vw15 = sessionVWAP(vw15Series.bars, vw15Series.gmtoffsetSec, vw15Series.regStartSec, vw15Series.regEndSec) ?? rollingVWAP(vw15Series.bars, 20);
+    const vwh  = sessionVWAP(vwhSeries.bars,  vwhSeries.gmtoffsetSec,  vwhSeries.regStartSec,  vwhSeries.regEndSec)  ?? rollingVWAP(vwhSeries.bars, 20);
+
+    // Regular-hours touch flags
+    const touchedMid = isNum(dayMid) && touchedLevelToday(series5.bars, dayMid, {
+      gmtoffsetSec: series5.gmtoffsetSec,
+      regStartSec:  series5.regStartSec,
+      regEndSec:    series5.regEndSec
+    });
+
+    const touchedPDH = isNum(pdh) && touchedLevelToday(series5.bars, pdh, {
+      gmtoffsetSec: series5.gmtoffsetSec,
+      regStartSec:  series5.regStartSec,
+      regEndSec:    series5.regEndSec
+    });
 
     mergeTicker(t, {
       DayMid: dayMid,
-      MA20_5m:  ma5,  VWAP_5m:  vw5,
-      MA20_15m: ma15, VWAP_15m: vw15,
-      MA20_1h:  mah,  VWAP_1h:  vwh,
-      TouchMid:  touchedMid,             // NEW
-      TouchPDH:  touchedPDH,             // NEW
+      MA20_5m:  isNum(ma5)  ? Number(ma5.toFixed(2))  : ma5,
+      VWAP_5m:  isNum(vw5)  ? Number(vw5.toFixed(2))  : vw5,
+      MA20_15m: isNum(ma15) ? Number(ma15.toFixed(2)) : ma15,
+      VWAP_15m: isNum(vw15) ? Number(vw15.toFixed(2)) : vw15,
+      MA20_1h:  isNum(mah)  ? Number(mah.toFixed(2))  : mah,
+      VWAP_1h:  isNum(vwh)  ? Number(vwh.toFixed(2))  : vwh,
+      TouchMid:  touchedMid,
+      TouchPDH:  touchedPDH,
     });
   }
 

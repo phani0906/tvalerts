@@ -319,7 +319,7 @@ table td {
 #pivotTableBearCont td:nth-child(4),
 #pivotTableBearRev td:nth-child(4) { width: 10%; }
 
-/* Daily MA20 */
+/* PDH (NEW) */
 #pivotTableBullCont th:nth-child(5),
 #pivotTableBullRev th:nth-child(5),
 #pivotTableBearCont th:nth-child(5),
@@ -329,7 +329,7 @@ table td {
 #pivotTableBearCont td:nth-child(5),
 #pivotTableBearRev td:nth-child(5) { width: 10%; }
 
-/* Pivot Levels (takes the rest) */
+/* Daily MA20 (shifted to col 6) */
 #pivotTableBullCont th:nth-child(6),
 #pivotTableBullRev th:nth-child(6),
 #pivotTableBearCont th:nth-child(6),
@@ -337,7 +337,17 @@ table td {
 #pivotTableBullCont td:nth-child(6),
 #pivotTableBullRev td:nth-child(6),
 #pivotTableBearCont td:nth-child(6),
-#pivotTableBearRev td:nth-child(6) { width: auto; }
+#pivotTableBearRev td:nth-child(6) { width: 10%; }
+
+/* Pivot Levels (shifted to col 7, takes remaining width) */
+#pivotTableBullCont th:nth-child(7),
+#pivotTableBullRev th:nth-child(7),
+#pivotTableBearCont th:nth-child(7),
+#pivotTableBearRev th:nth-child(7),
+#pivotTableBullCont td:nth-child(7),
+#pivotTableBullRev td:nth-child(7),
+#pivotTableBearCont td:nth-child(7),
+#pivotTableBearRev td:nth-child(7) { width: auto; }
 
 /* Pivot Levels layout */
 .pivot-circles {

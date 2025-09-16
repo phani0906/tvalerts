@@ -9,16 +9,28 @@
       BEAR_REV:  'Bearish Trend Reversal'
     };
   
-    // ===== Tolerance (fetched from server /tolerance; fallback defaults) =====
+    // ===== Tolerance (from server) =====
     let TOL = { pivot_mid: 1.0 };
     (async function loadTol() {
       try {
         const r = await fetch('/tolerance', { cache: 'no-store' });
         if (r.ok) TOL = Object.assign(TOL, await r.json());
-        // expose for quick tweaking in console if needed
         window.PIVOT_TOLERANCE = TOL;
-      } catch { /* keep defaults */ }
+      } catch {}
     })();
+  
+    // ===== Live touch flags map (from priceUpdate) =====
+    const TOUCH = new Map(); // ticker -> { mid:boolean, pdh:boolean }
+  
+    socket.on('priceUpdate', (snapshot) => {
+      if (!snapshot || typeof snapshot !== 'object') return;
+      for (const [t, data] of Object.entries(snapshot)) {
+        TOUCH.set(t, {
+          mid: !!data.TouchMid,
+          pdh: !!data.TouchPDH
+        });
+      }
+    });
   
     // ===== utils =====
     function fmt2(v) {
@@ -35,7 +47,15 @@
       if (Math.abs(diff) <= Number(tol)) td.classList.add('near-zero', 'blink');
     }
   
-    // ===== table painter =====
+    function greenTick() {
+      const s = document.createElement('span');
+      s.textContent = '✔ ';
+      s.style.color = 'limegreen';
+      s.style.fontWeight = '700';
+      return s;
+    }
+  
+    // ===== painter =====
     function renderPivotGroup(tableId, rows) {
       try {
         const table = document.getElementById(tableId);
@@ -48,6 +68,8 @@
   
         for (const r of list) {
           const ticker  = r.ticker ?? r.Ticker ?? '';
+          const flags   = TOUCH.get(ticker) || { mid: false, pdh: false };
+  
           const relText =
             r.relationshipLabel ??
             r.pivotRelationship ??
@@ -65,7 +87,7 @@
           td.textContent = ticker;
           tr.appendChild(td);
   
-          // --- Pivot Relationship (short label + CPR badge)
+          // --- Pivot Relationship (short + CPR badge)
           td = document.createElement('td');
           const relMap = {
             'Higher Value': 'HV',
@@ -124,16 +146,24 @@
           }
           tr.appendChild(td);
   
-          // --- Mid-point (with diff + blink tolerance)
+          // --- Mid-point (value + [✔] + diff) + blink
           td = document.createElement('td');
           const midVal = isNum(midRaw) ? num(midRaw) : null;
           if (midVal != null) {
             if (priceVal != null) {
               const diff = priceVal - midVal;
-              const span = document.createElement('span');
-              span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-              span.className = diff >= 0 ? 'diff-up' : 'diff-down';
-              td.appendChild(span);
+  
+              const spanVal  = document.createElement('span');
+              spanVal.textContent = `${fmt2(midVal)} `;
+  
+              const spanDiff = document.createElement('span');
+              spanDiff.textContent = `(${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
+              spanDiff.className = diff >= 0 ? 'diff-up' : 'diff-down';
+  
+              td.appendChild(spanVal);
+              if (flags.mid) td.appendChild(greenTick()); // ✅ before the difference
+              td.appendChild(spanDiff);
+  
               applyNearZeroBlink(td, diff, TOL.pivot_mid);
             } else {
               td.textContent = fmt2(midVal);
@@ -141,16 +171,24 @@
           }
           tr.appendChild(td);
   
-          // --- PDH (with diff + blink tolerance)
+          // --- PDH (value + [✔] + diff) + blink
           td = document.createElement('td');
           const pdhVal = isNum(pdhRaw) ? num(pdhRaw) : null;
           if (pdhVal != null) {
             if (priceVal != null) {
               const diff = priceVal - pdhVal;
-              const span = document.createElement('span');
-              span.textContent = `${fmt2(pdhVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-              span.className = diff >= 0 ? 'diff-up' : 'diff-down';
-              td.appendChild(span);
+  
+              const spanVal  = document.createElement('span');
+              spanVal.textContent = `${fmt2(pdhVal)} `;
+  
+              const spanDiff = document.createElement('span');
+              spanDiff.textContent = `(${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
+              spanDiff.className = diff >= 0 ? 'diff-up' : 'diff-down';
+  
+              td.appendChild(spanVal);
+              if (flags.pdh) td.appendChild(greenTick()); // ✅ before the difference
+              td.appendChild(spanDiff);
+  
               applyNearZeroBlink(td, diff, TOL.pivot_mid);
             } else {
               td.textContent = fmt2(pdhVal);
@@ -158,7 +196,7 @@
           }
           tr.appendChild(td);
   
-          // --- Daily MA20 (with % diff vs price)
+          // --- Daily MA20 (with % diff)
           td = document.createElement('td');
           const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
           if (maVal != null) {
@@ -174,7 +212,7 @@
           }
           tr.appendChild(td);
   
-          // --- Pivot Levels (sorted, with BC colored blue & neighbors highlighted)
+          // --- Pivot Levels (sorted, BC blue & neighbors highlighted)
           td = document.createElement('td');
           const pl = r.pivotLevels || null;
           if (pl) {
@@ -192,10 +230,8 @@
               { key: 'S5', val: pl.S5 },
             ].filter(l => isNum(l.val));
   
-            // sort ascending by price
             levels.sort((a, b) => a.val - b.val);
   
-            // find two levels bracketing current price
             let leftIdx = -1, rightIdx = -1;
             if (isNum(priceVal) && levels.length > 0) {
               for (let i = 0; i < levels.length - 1; i++) {
@@ -217,12 +253,7 @@
               const line1 = document.createElement('div');
               line1.className = 'pivot-text-key';
               line1.textContent = String(lvl.key);
-  
-              // Color BC label blue (no CSS dependency; inline style)
-              if (lvl.key === 'BC') {
-                line1.style.color = '#1E90FF';  // DodgerBlue
-                line1.style.fontWeight = '700';
-              }
+              if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
   
               const line2 = document.createElement('div');
               line2.className = 'pivot-text-price';
@@ -242,7 +273,6 @@
   
             td.appendChild(row);
   
-            // also color current price green if bracketing found
             if (leftIdx !== -1 && rightIdx !== -1) {
               const openPriceTd = tr.children[2]; // Open/Price column
               const priceSpan = openPriceTd && openPriceTd.querySelector('span:last-child');
@@ -258,7 +288,7 @@
       }
     }
   
-    // ===== split by trend helpers =====
+    // ===== split by trend & paint =====
     const lc = s => String(s || '').toLowerCase();
     function splitByTrend(rows) {
       const list = Array.isArray(rows) ? rows : [];
@@ -269,7 +299,6 @@
         bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
       };
     }
-  
     function paint(rows) {
       const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
       renderPivotGroup('pivotTableBullCont', bullCont);
@@ -278,18 +307,14 @@
       renderPivotGroup('pivotTableBearRev',  bearRev);
     }
   
-    // ===== initial boot (optional snapshot) =====
+    // Initial snapshot + live updates
     (async function boot() {
       try {
         const r = await fetch('/pivot/latest', { cache: 'no-store' });
         const rows = await r.json();
         paint(rows);
-      } catch {
-        // ignore; socket will update soon
-      }
+      } catch {}
     })();
-  
-    // ===== live updates =====
     socket.on('pivotUpdate', paint);
   })();
   

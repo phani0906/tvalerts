@@ -89,7 +89,6 @@ async function fetchYahooChart(ticker, { interval, range, includePrePost = false
 
   const r = await fetch(url.toString(), {
     headers: {
-      // UA helps avoid some edge throttles
       'User-Agent': 'Mozilla/5.0 (Node) TV-Scanner',
       'Accept': 'application/json,text/plain,*/*'
     }
@@ -121,10 +120,7 @@ async function fetchYahooChart(ticker, { interval, range, includePrePost = false
   }
   const closes = (indicators.close || []).filter(isNum);
 
-  return {
-    quotes: bars,
-    meta,
-  };
+  return { quotes: bars, meta };
 }
 
 async function fetchIntradaySeries(ticker, key) {
@@ -141,19 +137,13 @@ async function fetchIntradaySeries(ticker, key) {
   const quotes       = Array.isArray(result?.quotes) ? result.quotes : [];
   const gmtoffsetSec = Number(result?.meta?.gmtoffset) || 0;
 
-  if (key === '5m'); //console.log(`[5m] ${ticker} quotes=${quotes.length} gmtoffset=${gmtoffsetSec}`);
-
   const closes = [];
   const bars   = [];
   for (const q of quotes) {
     if (isNum(q?.close)) closes.push(q.close);
     bars.push({
       date: q.date || new Date(),
-      open: q.open,
-      high: q.high,
-      low:  q.low,
-      close:q.close,
-      volume:q.volume
+      open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume
     });
   }
 
@@ -198,7 +188,7 @@ async function fetchVWAP(ticker, key) {
   }
 }
 
-// previous-day midpoint from daily bars (yahoo-finance2.historical is fine here)
+// previous-day midpoint from daily bars
 async function fetchPrevDayMid(ticker) {
   try {
     const period2 = new Date();
@@ -217,6 +207,41 @@ async function fetchPrevDayMid(ticker) {
   }
 }
 
+// NEW: previous-day high (PDH)
+async function fetchPrevDayHigh(ticker) {
+  try {
+    const period2 = new Date();
+    const period1 = new Date(Date.now() - 15 * 24 * 3600 * 1000);
+    const dailyBars = await yahooFinance.historical(ticker, { period1, period2, interval: '1d' });
+    if (Array.isArray(dailyBars) && dailyBars.length >= 2) {
+      const prev = dailyBars[dailyBars.length - 2];
+      if (isNum(prev?.high)) return Number(prev.high.toFixed(2));
+    }
+    return 'N/A';
+  } catch (e) {
+    console.warn(`[marketData] fetchPrevDayHigh failed ${ticker}:`, e.message);
+    return 'N/A';
+  }
+}
+
+// NEW: did today's session touch a level?
+function touchedLevelToday(bars, gmtoffsetSec, level) {
+  if (!Array.isArray(bars) || !isNum(level)) return false;
+  // derive today's session key
+  const last = bars[bars.length - 1];
+  const todayKey = last ? dayKeyWithOffset(last.date, gmtoffsetSec) : null;
+  if (!todayKey) return false;
+
+  for (const b of bars) {
+    const key = dayKeyWithOffset(b.date, gmtoffsetSec);
+    if (key !== todayKey) continue;
+    const lo = num(b.low), hi = num(b.high);
+    if (!isNum(lo) || !isNum(hi)) continue;
+    if (lo <= level && level <= hi) return true;
+  }
+  return false;
+}
+
 // -------------------- alerts loader --------------------
 function safeLoad(file) {
   try {
@@ -229,11 +254,9 @@ function safeLoad(file) {
 }
 
 // -------------------- dual-cadence updater --------------------
-const currentData = {}; // { [TICKER]: { Price, DayMid, MA20_5m, VWAP_5m, MA20_15m, VWAP_15m, MA20_1h, VWAP_1h } }
+const currentData = {}; // { [TICKER]: { Price, DayMid, MA..., VWAP..., TouchMid, TouchPDH } }
 
-function assignIfNum(obj, key, val) {
-  if (isNum(val)) obj[key] = val;
-}
+function assignIfNum(obj, key, val) { if (isNum(val)) obj[key] = val; }
 
 function mergeTicker(t, patch) {
   const prev = currentData[t] || {};
@@ -249,6 +272,10 @@ function mergeTicker(t, patch) {
   if ('VWAP_15m' in patch) assignIfNum(next, 'VWAP_15m', patch.VWAP_15m);
   if ('MA20_1h'  in patch) assignIfNum(next, 'MA20_1h',  patch.MA20_1h);
   if ('VWAP_1h'  in patch) assignIfNum(next, 'VWAP_1h',  patch.VWAP_1h);
+
+  // NEW: booleans copy through as-is
+  if ('TouchMid'  in patch) next.TouchMid  = !!patch.TouchMid;
+  if ('TouchPDH'  in patch) next.TouchPDH  = !!patch.TouchPDH;
 
   currentData[t] = next;
 }
@@ -276,7 +303,6 @@ async function runPricePass(io, dataDir) {
   }
 
   io.emit('priceUpdate', { ...currentData }); // full snapshot
-  //console.log('[marketData] priceUpdate (fast):', Object.keys(currentData));
 }
 
 async function runMetricsPass(io, dataDir) {
@@ -285,37 +311,39 @@ async function runMetricsPass(io, dataDir) {
 
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
-    const [ma5, vw5, ma15, vw15, mah, vwh, dayMid] = await Promise.all([
+    const [ma5, vw5, ma15, vw15, mah, vwh, dayMid, pdh, series5] = await Promise.all([
       fetchMA20(t, '5m'),  fetchVWAP(t, '5m'),
       fetchMA20(t, '15m'), fetchVWAP(t, '15m'),
       fetchMA20(t, '1h'),  fetchVWAP(t, '1h'),
-      fetchPrevDayMid(t)
+      fetchPrevDayMid(t),
+      fetchPrevDayHigh(t),               // NEW
+      fetchIntradaySeries(t, '5m'),      // NEW for touch detection
     ]);
+
+    // NEW: touch flags
+    const touchedMid = isNum(dayMid) && touchedLevelToday(series5.bars, series5.gmtoffsetSec, dayMid);
+    const touchedPDH = isNum(pdh)    && touchedLevelToday(series5.bars, series5.gmtoffsetSec, pdh);
 
     mergeTicker(t, {
       DayMid: dayMid,
       MA20_5m:  ma5,  VWAP_5m:  vw5,
       MA20_15m: ma15, VWAP_15m: vw15,
       MA20_1h:  mah,  VWAP_1h:  vwh,
+      TouchMid:  touchedMid,             // NEW
+      TouchPDH:  touchedPDH,             // NEW
     });
   }
 
-  io.emit('priceUpdate', { ...currentData }); // full snapshot (with fresh metrics)
-  //console.log('[marketData] metricsUpdate (slow):', Object.keys(currentData));
+  io.emit('priceUpdate', { ...currentData }); // full snapshot (with fresh metrics + flags)
 }
 
 /**
  * startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 })
  */
 function startMarketDataUpdater(io, { dataDir, fastMs = 5000, slowMs = 60000 }) {
-  // initial empty emit so UI wires up
   setTimeout(() => io.emit('priceUpdate', {}), 500);
-
-  // Kick off both loops
   setInterval(() => { runPricePass(io, dataDir).catch(e => console.warn('[price pass]', e.message)); }, fastMs);
   setInterval(() => { runMetricsPass(io, dataDir).catch(e => console.warn('[metrics pass]', e.message)); }, slowMs);
-
-  // Also do one immediate metrics pass so MA/VWAP/DayMid show up without waiting a minute
   runMetricsPass(io, dataDir).catch(() => {});
 }
 

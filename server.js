@@ -94,6 +94,11 @@ app.get('/scanner', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
 });
 
+app.get('/bullishContinuation', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'bullishContinuation.html'));
+});
+
+
 // ================== Socket.io ==================
 io.on('connection', (socket) => {
   // push a quote and the latest pivots on connect

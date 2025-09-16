@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bullish Continuation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="scanner.css?v=5" />
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      .page-topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 10px 12px;
+      }
+      .back-link { text-decoration: none; font-weight: 600; opacity: 0.9; }
+      .back-link:hover { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <!-- Top scrolling quote -->
+    <div id="quote-bar"><span id="quote-text">Loading quote...</span></div>
+
+    <div class="page-topbar">
+      <a class="back-link" href="/scanner.html">← Back to Scanner</a>
+      <h2 style="margin: 0;">📈 Bullish Continuation</h2>
+      <span></span>
+    </div>
+
+    <div class="table-container buy-table">
+      <h3 class="table-title buy-title">📈 Bullish Continuation</h3>
+      <table id="pivotTableBullCont">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Pivot Rel.</th>
+            <th>Open/Price</th>
+            <th>Mid-point</th>
+            <th>PDH</th>
+            <th>Daily MA20</th>
+            <th>Pivot Levels</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Scripts (re-use existing logic) -->
+    <script src="pivotPanel.js?v=5" defer></script>
+    <script src="scanner.js?v=13" defer></script>
+  </body>
+</html>

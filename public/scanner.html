@@ -11,7 +11,9 @@
       @media (max-width: 980px) { .pivot-grid { grid-template-columns: 1fr; } }
     </style>
   </head>
+
   <body>
+    <!-- Top scrolling quote -->
     <div id="quote-bar"><span id="quote-text">Loading quote...</span></div>
 
     <!-- ===== Pivot/CPR (four tables) ===== -->
@@ -24,7 +26,7 @@
             <th>Pivot Rel.</th>
             <th>Open/Price</th>
             <th>Mid-point</th>
-            <th>PDH</th>          <!-- NEW -->
+            <th>PDH</th>
             <th>Daily MA20</th>
             <th>Pivot Levels</th>
           </tr></thead>
@@ -40,7 +42,7 @@
             <th>Pivot Rel.</th>
             <th>Open/Price</th>
             <th>Mid-point</th>
-            <th>PDH</th>          <!-- NEW -->
+            <th>PDH</th>
             <th>Daily MA20</th>
             <th>Pivot Levels</th>
           </tr></thead>
@@ -56,7 +58,7 @@
             <th>Pivot Rel.</th>
             <th>Open/Price</th>
             <th>Mid-point</th>
-            <th>PDH</th>          <!-- NEW -->
+            <th>PDH</th>
             <th>Daily MA20</th>
             <th>Pivot Levels</th>
           </tr></thead>
@@ -72,7 +74,7 @@
             <th>Pivot Rel.</th>
             <th>Open/Price</th>
             <th>Mid-point</th>
-            <th>PDH</th>          <!-- NEW -->
+            <th>PDH</th>
             <th>Daily MA20</th>
             <th>Pivot Levels</th>
           </tr></thead>
@@ -82,7 +84,91 @@
     </div>
     <!-- ===== /Pivot/CPR ===== -->
 
-    <!-- Your scanner tables remain unchanged -->
+    <!-- GREEN ZONE (5m) -->
+    <div class="table-container buy-table">
+      <h3 class="table-title buy-title">🔥 Green Zone (5mins)</h3>
+      <table id="scannerTableBuy">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (5m)</th><th>VWAP (5m)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- RED ZONE (5m) -->
+    <div class="table-container sell-table">
+      <h3 class="table-title sell-title">⚡ Red Zone (5mins)</h3>
+      <table id="scannerTableSell">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (5m)</th><th>VWAP (5m)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- GREEN ZONE (15m) -->
+    <div class="table-container buy-table">
+      <h3 class="table-title buy-title">🔥 Green Zone — 15m</h3>
+      <table id="scannerTableBuy15">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (15m)</th><th>VWAP (15m)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- RED ZONE (15m) -->
+    <div class="table-container sell-table">
+      <h3 class="table-title sell-title">⚡ Red Zone — 15m</h3>
+      <table id="scannerTableSell15">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (15m)</th><th>VWAP (15m)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- GREEN ZONE (1h) -->
+    <div class="table-container buy-table">
+      <h3 class="table-title buy-title">🔥 Green Zone — 1h</h3>
+      <table id="scannerTableBuy1h">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (1h)</th><th>VWAP (1h)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- RED ZONE (1h) -->
+    <div class="table-container sell-table">
+      <h3 class="table-title sell-title">⚡ Red Zone — 1h</h3>
+      <table id="scannerTableSell1h">
+        <thead>
+          <tr>
+            <th>Time</th><th>Ticker</th><th>Alert</th><th>Price</th>
+            <th>MA20 (1h)</th><th>VWAP (1h)</th><th>DayMid</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Scripts -->
     <script src="pivotPanel.js?v=5" defer></script>
     <script src="scanner.js?v=13" defer></script>
   </body>

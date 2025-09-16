@@ -1,336 +1,118 @@
 /* global io */
 (function () {
     const socket = io();
-
-    const TREND = {
-        BULL_CONT: 'Bullish Continuation',
-        BEAR_CONT: 'Bearish Continuation',
-        BULL_REV: 'Bullish Trend Reversal',
-        BEAR_REV: 'Bearish Trend Reversal'
-    };
-
-    // ===== Tolerance (fetched from server /tolerance; fallback defaults) =====
-    let TOL = { pivot_mid: 1.0 };
-    (async function loadTol() {
-        try {
-            const r = await fetch('/tolerance', { cache: 'no-store' });
-            if (r.ok) TOL = Object.assign(TOL, await r.json());
-            window.PIVOT_TOLERANCE = TOL; // expose for quick tweaking
-        } catch { /* keep defaults */ }
-    })();
-
-    function fmt2(v) {
-        if (v == null || v === '') return '';
-        const n = Number(v);
-        return Number.isNaN(n) ? '' : n.toFixed(2);
+  
+    // Small number formatter used everywhere
+    function fmt2(v){
+      if (v == null || v === '') return '';
+      const n = Number(v);
+      return Number.isNaN(n) ? '' : n.toFixed(2);
     }
-    const isNum = v => v != null && isFinite(Number(v));
-    const num = v => Number(v);
-
-    function applyNearZeroBlink(td, diff, tol) {
-        td.classList.remove('near-zero', 'blink');
-        if (!isNum(diff) || !isNum(tol)) return;
-        if (Math.abs(diff) <= Number(tol)) td.classList.add('near-zero', 'blink');
+  
+    // ===== Table wiring =====
+    const TABLE_ID = 'pivot-table'; // make sure your HTML table has this id
+  
+    function ensureTable() {
+      const table = document.getElementById(TABLE_ID);
+      if (!table) return null;
+  
+      // Header (build once)
+      if (!table.dataset.hdrBuilt) {
+        const thead = table.querySelector('thead') || table.createTHead();
+        thead.innerHTML = '';
+        const tr = document.createElement('tr');
+  
+        [
+          'Ticker',
+          'Open / Price',
+          'Mid-point',
+          'PDH',            // <-- NEW column placed right after Mid-point
+          // ... keep your existing headers after this line unchanged
+          'CPR Pivot',
+          'CPR BC',
+          'CPR TC',
+          'H1','H2','H3','H4','L1','L2','L3','L4'
+        ].forEach(h => {
+          const th = document.createElement('th');
+          th.textContent = h;
+          tr.appendChild(th);
+        });
+  
+        thead.appendChild(tr);
+        table.dataset.hdrBuilt = '1';
+      }
+  
+      const tbody = table.querySelector('tbody') || table.createTBody();
+      return { table, tbody };
     }
-
-    function renderPivotGroup(tableId, rows) {
-        try {
-            const table = document.getElementById(tableId);
-            if (!table) { console.warn(`[pivot] table not found: #${tableId}`); return; }
-            const tbody = table.querySelector('tbody');
-            if (!tbody) { console.warn(`[pivot] tbody missing in #${tableId}`); return; }
-
-            const list = Array.isArray(rows) ? rows : [];
-            tbody.innerHTML = '';
-
-            for (const r of list) {
-                const ticker = r.ticker ?? r.Ticker ?? '';
-                const rel =
-                    r.relationshipLabel ??
-                    r.pivotRelationship ??
-                    r.relationship ?? '';
-
-                const midRaw =
-                    r.midpoint ?? r.midPoint ?? r.mid ??
-                    r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-
-                const openRaw =
-                    r.open ?? r.openPrice ?? r.o ??
-                    r.Open ?? r.OPEN;
-
-                const priceRaw = r.currentPrice ?? r.price ?? r.Price;
-
-                const tr = document.createElement('tr');
-
-                // ===== Ticker =====
-                const tdTicker = document.createElement('td');
-                tdTicker.textContent = ticker;
-                tr.appendChild(tdTicker);
-
-                // ===== Pivot Relationship (short form + color) =====
-                const tdRel = document.createElement('td');
-                const relMap = {
-                    'Higher Value': 'HV',
-                    'Overlapping Higher Value': 'OHV',
-                    'Lower Value': 'LV',
-                    'Overlapping Lower Value': 'OLV',
-                    'Inner Value': 'IV',
-                    'Outside Value': 'OV',
-                    'No change': 'NC',
-                    'No Change': 'NC',
-                    'Nochange': 'NC'
-                };
-                const shortRel = relMap[rel] || (rel || '');
-                tdRel.textContent = shortRel;
-
-                // === CPR badge (Narrow/Wide/Normal) ===
-                const cls = (r.cprClass || 'normal').toLowerCase(); // 'narrow' | 'wide' | 'normal'
-                const badge = document.createElement('span');
-                badge.className = `cpr-badge cpr-${cls}`;
-                const label = cls === 'narrow' ? 'Narrow' : cls === 'wide' ? 'Wide' : 'Normal';
-                badge.textContent = label;
-
-                // Tooltip with numbers if available
-                const w = r.cprWidth;        // numeric CPR width (TC-BC)
-                const rk = r.cprRank;         // 1..10 (1 = narrowest)
-                const pct = r.cprPercentile;   // e.g., 0.30 = 30th pct
-                if (w != null) {
-                    const pctTxt = (pct != null) ? ` • pct ${(pct * 100).toFixed(0)}%` : '';
-                    const rkTxt = (rk != null) ? ` • rank ${rk}/10` : '';
-                    badge.title = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
-                }
-
-                // space + badge
-                const spacer = document.createElement('span');
-                spacer.textContent = ' ';
-                tdRel.appendChild(spacer);
-                tdRel.appendChild(badge);
-
-
-                if (shortRel === 'HV' || shortRel === 'OHV') {
-                    tdRel.style.color = 'limegreen';
-                    tdRel.style.fontWeight = '700';
-                } else if (shortRel === 'LV' || shortRel === 'OLV') {
-                    tdRel.style.color = 'red';
-                    tdRel.style.fontWeight = '700';
-                } else if (shortRel === 'IV') {
-                    tdRel.style.color = 'deepskyblue';
-                    tdRel.style.fontWeight = '700';
-                } else if (shortRel === 'OV' || shortRel === 'NC') {
-                    tdRel.style.color = 'gray';
-                    tdRel.style.fontWeight = '700';
-                }
-                if (shortRel) tdRel.classList.add('emphasis');
-                tr.appendChild(tdRel);
-
-                // ===== Open / Price (moved BEFORE Mid-point) =====
-                const tdOpen = document.createElement('td');
-                const openVal = isNum(openRaw) ? num(openRaw) : null;
-                const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
-
-                if (openVal != null || priceVal != null) {
-                    // render "open / price" as two spans so we can highlight price independently
-                    const openSpan = document.createElement('span');
-                    const priceSpan = document.createElement('span');
-
-                    if (openVal != null) {
-                        openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
-                    }
-
-                    if (priceVal != null) {
-                        priceSpan.textContent = fmt2(priceVal);
-                    }
-
-                    // default color logic vs open, if both present
-                    if (openVal != null && priceVal != null) {
-                        if (priceVal > openVal) priceSpan.style.color = 'limegreen';
-                        else if (priceVal < openVal) priceSpan.style.color = 'red';
-                    }
-
-                    tdOpen.appendChild(openSpan);
-                    tdOpen.appendChild(priceSpan);
-                }
-                tr.appendChild(tdOpen);
-
-                // ===== Mid-point (now AFTER Open/Price) =====
-                const tdMid = document.createElement('td');
-                const midVal = isNum(midRaw) ? num(midRaw) : null;
-
-                if (midVal != null) {
-                    if (priceVal != null) {
-                        const diff = priceVal - midVal;
-                        const span = document.createElement('span');
-                        span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-                        span.className = diff >= 0 ? 'diff-up' : 'diff-down';
-                        tdMid.appendChild(span);
-                        applyNearZeroBlink(tdMid, diff, TOL.pivot_mid);
-                    } else {
-                        tdMid.textContent = fmt2(midVal);
-                    }
-                }
-                tr.appendChild(tdMid);
-
-                // ===== Daily MA20 (with % diff vs current price) =====
-                const tdMA = document.createElement('td');
-                const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
-
-                if (maVal != null) {
-                    if (priceVal != null && maVal !== 0) {
-                        const pct = ((priceVal - maVal) / maVal) * 100;
-                        const span = document.createElement('span');
-                        span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
-                        span.className = pct >= 0 ? 'diff-up' : 'diff-down';
-                        tdMA.appendChild(span);
-                    } else {
-                        tdMA.textContent = fmt2(maVal);
-                    }
-                }
-                tr.appendChild(tdMA);
-
-
-                // ===== Pivot Levels (sorted ascending, two-line blocks with pipes) =====
-                const tdLevels = document.createElement('td');
-                tdLevels.innerHTML = '';
-
-                const pl = r.pivotLevels || null;
-                if (pl) {
-                    let levels = [
-                        { key: 'R5', val: pl.R5 },
-                        { key: 'R4', val: pl.R4 },
-                        { key: 'R3', val: pl.R3 },
-                        { key: 'H', val: pl.prevHigh },
-                        { key: 'TC', val: pl.TC },
-                        { key: 'P', val: pl.P },
-                        { key: 'BC', val: pl.BC },
-                        { key: 'L', val: pl.prevLow },
-                        { key: 'S3', val: pl.S3 },
-                        { key: 'S4', val: pl.S4 },
-                        { key: 'S5', val: pl.S5 },
-                    ].filter(l => isNum(l.val));
-
-                    // sort ascending by price
-                    levels.sort((a, b) => a.val - b.val);
-
-                    // ---- find the bracketing pair around current price ----
-                    let leftIdx = -1, rightIdx = -1;
-                    if (isNum(priceVal) && levels.length > 0) {
-                        for (let i = 0; i < levels.length - 1; i++) {
-                            const a = levels[i].val, b = levels[i + 1].val;
-                            if (priceVal >= a && priceVal <= b) {
-                                leftIdx = i;
-                                rightIdx = i + 1;
-                                break;
-                            }
-                        }
-                        // endpoints: if price below min or above max, highlight nearest pair
-                        if (leftIdx === -1 && priceVal < levels[0].val && levels.length >= 2) {
-                            leftIdx = 0; rightIdx = 1;
-                        }
-                        if (leftIdx === -1 && priceVal > levels[levels.length - 1].val && levels.length >= 2) {
-                            leftIdx = levels.length - 2; rightIdx = levels.length - 1;
-                        }
-                    }
-
-                    const row = document.createElement('div');
-                    row.className = 'pivot-text-row';
-
-                    levels.forEach((lvl, idx) => {
-                        const block = document.createElement('span');
-                        block.className = 'pivot-text-block';
-
-                        // apply green highlight if this block is one of the bracketing pair
-                        if (idx === leftIdx || idx === rightIdx) {
-                            block.classList.add('pivot-hl');
-                        }
-
-                        const line1 = document.createElement('div');
-                        line1.className = 'pivot-text-key';
-                        line1.textContent = String(lvl.key);
-
-                        const line2 = document.createElement('div');
-                        line2.className = 'pivot-text-price';
-                        line2.textContent = fmt2(lvl.val);
-
-                        block.appendChild(line1);
-                        block.appendChild(line2);
-                        row.appendChild(block);
-
-                        if (idx < levels.length - 1) {
-                            const sep = document.createElement('span');
-                            sep.className = 'pivot-text-sep';
-                            sep.textContent = ' | ';
-                            row.appendChild(sep);
-                        }
-                    });
-
-                    tdLevels.appendChild(row);
-
-                    // also force the current price (in Open/Price col) to green if we found a bracket
-                    if (leftIdx !== -1 && rightIdx !== -1) {
-                        const priceSpan = tdOpen.querySelector('span:last-child');
-                        if (priceSpan) {
-                            priceSpan.classList.add('pivot-hl-price');
-                        }
-                    }
-
-                    /* ===== Old circle UI (kept, commented out) =====
-                    const container = document.createElement('div');
-                    container.className = 'pivot-circles';
-                    for (const lvl of levels) {
-                      const wrapper = document.createElement('div');
-                      wrapper.className = 'circle-wrapper';
-                      const circle = document.createElement('div');
-                      circle.className = 'circle';
-                      circle.textContent = lvl.key;
-                      const price = document.createElement('div');
-                      price.className = 'circle-price';
-                      price.textContent = fmt2(lvl.val);
-                      wrapper.appendChild(circle);
-                      wrapper.appendChild(price);
-                      container.appendChild(wrapper);
-                    }
-                    tdLevels.appendChild(container);
-                    ===== end old UI ===== */
-                }
-                tr.appendChild(tdLevels);
-
-                tbody.appendChild(tr);
-            }
-        } catch (err) {
-            console.error(`[pivot] render error for #${tableId}:`, err);
-        }
-    }
-
-    const lc = s => String(s || '').toLowerCase();
-    function splitByTrend(rows) {
-        const list = Array.isArray(rows) ? rows : [];
-        return {
-            bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
-            bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-            bullRev: list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-            bearRev: list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
+  
+    // Keep a simple map for quick updates if the same ticker arrives again
+    const rowMap = new Map();
+  
+    function upsertRow(tbody, r) {
+      let obj = rowMap.get(r.ticker);
+      if (!obj) {
+        const tr = document.createElement('tr');
+  
+        // Create cells in the same order as headers
+        const cells = {
+          ticker: td(tr, r.ticker || ''),
+          openPrice: td(tr, ''),          // your app may fill this from elsewhere
+          midPoint: td(tr, fmt2(r.midPoint)),
+          pdh: td(tr, fmt2(r.pdh)),       // <-- NEW cell after Mid-point
+          cpr_pivot: td(tr, fmt2(r.cpr_pivot)),
+          cpr_bc: td(tr, fmt2(r.cpr_bc)),
+          cpr_tc: td(tr, fmt2(r.cpr_tc)),
+          H1: td(tr, fmt2(r.H1)), H2: td(tr, fmt2(r.H2)),
+          H3: td(tr, fmt2(r.H3)), H4: td(tr, fmt2(r.H4)),
+          L1: td(tr, fmt2(r.L1)), L2: td(tr, fmt2(r.L2)),
+          L3: td(tr, fmt2(r.L3)), L4: td(tr, fmt2(r.L4)),
         };
+  
+        tbody.appendChild(tr);
+        obj = { tr, cells };
+        rowMap.set(r.ticker, obj);
+      }
+  
+      // Update values (only ones provided by pivotUpdate)
+      obj.cells.midPoint.innerText = fmt2(r.midPoint);
+      obj.cells.pdh.innerText = fmt2(r.pdh);    // <-- keep updated
+      obj.cells.cpr_pivot.innerText = fmt2(r.cpr_pivot);
+      obj.cells.cpr_bc.innerText = fmt2(r.cpr_bc);
+      obj.cells.cpr_tc.innerText = fmt2(r.cpr_tc);
+      obj.cells.H1.innerText = fmt2(r.H1);
+      obj.cells.H2.innerText = fmt2(r.H2);
+      obj.cells.H3.innerText = fmt2(r.H3);
+      obj.cells.H4.innerText = fmt2(r.H4);
+      obj.cells.L1.innerText = fmt2(r.L1);
+      obj.cells.L2.innerText = fmt2(r.L2);
+      obj.cells.L3.innerText = fmt2(r.L3);
+      obj.cells.L4.innerText = fmt2(r.L4);
     }
-
-    function paint(rows) {
-        const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
-        renderPivotGroup('pivotTableBullCont', bullCont);
-        renderPivotGroup('pivotTableBullRev', bullRev);
-        renderPivotGroup('pivotTableBearCont', bearCont);
-        renderPivotGroup('pivotTableBearRev', bearRev);
+  
+    function td(tr, val) {
+      const td = document.createElement('td');
+      td.textContent = (val ?? '') + '';
+      tr.appendChild(td);
+      return td;
     }
-
-    // Initial snapshot (priority paint)
-    (async function boot() {
-        try {
-            const r = await fetch('/pivot/latest', { cache: 'no-store' });
-            const rows = await r.json();
-            paint(rows);
-        } catch {
-            // ignore; socket will update
-        }
-    })();
-
-    // Live updates
-    socket.on('pivotUpdate', paint);
-})();
+  
+    function renderRows(rows) {
+      const parts = ensureTable();
+      if (!parts) return;
+      const { tbody } = parts;
+  
+      rows.forEach(r => upsertRow(tbody, r));
+    }
+  
+    // ===== Socket listeners =====
+    socket.on('pivotUpdate', (rows) => {
+      if (!Array.isArray(rows)) return;
+      renderRows(rows);
+    });
+  
+    // Optional: if server exposes a snapshot endpoint you can fetch once on load.
+    // (not required if your server emits soon after connect)
+    // fetch('/pivot-snapshot').then(r=>r.json()).then(renderRows).catch(()=>{});
+  })();
+  

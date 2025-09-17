@@ -171,7 +171,6 @@
                 }
                 tr.appendChild(td);
 
-
                 // --- PDH ---
                 td = document.createElement('td');
                 const pdhVal = isNum(pdhRaw) ? num(pdhRaw) : null;
@@ -199,7 +198,6 @@
                 }
                 tr.appendChild(td);
 
-
                 // --- Daily MA20 (with % diff)
                 td = document.createElement('td');
                 const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
@@ -224,11 +222,11 @@
                         { key: 'R5', val: pl.R5 },
                         { key: 'R4', val: pl.R4 },
                         { key: 'R3', val: pl.R3 },
-                        { key: 'H', val: pl.prevHigh },
+                        { key: 'H',  val: pl.prevHigh },
                         { key: 'TC', val: pl.TC },
-                        { key: 'P', val: pl.P },
+                        { key: 'P',  val: pl.P },
                         { key: 'BC', val: pl.BC },
-                        { key: 'L', val: pl.prevLow },
+                        { key: 'L',  val: pl.prevLow },
                         { key: 'S3', val: pl.S3 },
                         { key: 'S4', val: pl.S4 },
                         { key: 'S5', val: pl.S5 },
@@ -256,7 +254,11 @@
 
                         const line1 = document.createElement('div');
                         line1.className = 'pivot-text-key';
-                        line1.textContent = String(lvl.key);
+
+                        // H -> PDH, L -> PDL (UI label only)
+                        const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
+                        line1.textContent = keyLabel;
+
                         if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
 
                         const line2 = document.createElement('div');
@@ -299,13 +301,13 @@
         return {
             bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
             bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-            bullRev: list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-            bearRev: list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
+            bullRev:  list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
+            bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
         };
     }
     function paint(rows) {
         const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
-      
+
         // helpful debug
         console.log('[pivot] counts', {
           total: (rows || []).length,
@@ -314,13 +316,12 @@
           bullRev: bullRev.length,
           bearRev: bearRev.length
         });
-      
+
         renderPivotGroup('pivotTableBullCont', bullCont);
         renderPivotGroup('pivotTableBearCont', bearCont);
         renderPivotGroup('pivotTableBullRev', bullRev);
         renderPivotGroup('pivotTableBearRev', bearRev);
-      }
-      
+    }
 
     // ===== initial boot =====
     (async function boot() {

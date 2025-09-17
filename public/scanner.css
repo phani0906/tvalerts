@@ -553,3 +553,16 @@ table td {
 
 /* When toggled, stack the four pivot tables vertically */
 .pivot-grid.stacked { grid-template-columns: 1fr !important; }
+
+/* Make the four pivot tables vertical by default when .stacked is present */
+.pivot-grid.stacked { grid-template-columns: 1fr !important; }
+
+/* Keep Bullish Continuation table visible while scrolling */
+.sticky-bc {
+  position: sticky;
+  top: 56px;        /* clears the fixed toggle button */
+  z-index: 900;     /* above neighbors */
+  /* background already set on .buy-table; extra shadow helps separation while stuck */
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+}
+

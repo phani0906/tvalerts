@@ -305,11 +305,22 @@
     }
     function paint(rows) {
         const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
+      
+        // helpful debug
+        console.log('[pivot] counts', {
+          total: (rows || []).length,
+          bullCont: bullCont.length,
+          bearCont: bearCont.length,
+          bullRev: bullRev.length,
+          bearRev: bearRev.length
+        });
+      
         renderPivotGroup('pivotTableBullCont', bullCont);
-        renderPivotGroup('pivotTableBullRev', bullRev);
         renderPivotGroup('pivotTableBearCont', bearCont);
+        renderPivotGroup('pivotTableBullRev', bullRev);
         renderPivotGroup('pivotTableBearRev', bearRev);
-    }
+      }
+      
 
     // ===== initial boot =====
     (async function boot() {

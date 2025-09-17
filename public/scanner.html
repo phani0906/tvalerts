@@ -34,7 +34,7 @@
         </table>
       </div>
 
-      <!-- 2) Bearish Continuation (moved above Bullish TR) -->
+      <!-- 2) Bearish Continuation -->
       <div class="table-container sell-table">
         <h3 class="table-title sell-title">📉 Bearish Continuation</h3>
         <table id="pivotTableBearCont">
@@ -211,49 +211,50 @@
     <script src="pivotPanel.js?v=5" defer></script>
     <script src="scanner.js?v=13" defer></script>
 
-    <!-- Pivot layout toggle (fixed order + vertical/horizontal) -->
+    <!-- Pivot layout toggle (fixed order + vertical/horizontal, defaults to horizontal) -->
     <script>
       (() => {
-        // Desired fixed order
         const ORDER = ['pivotTableBullCont','pivotTableBearCont','pivotTableBullRev','pivotTableBearRev'];
+        const btn   = document.getElementById('pivotToggleBtn');
+        const grid  = document.getElementById('pivotGrid');
 
-        const btn = document.getElementById('pivotToggleBtn');
-        const grid = document.getElementById('pivotGrid');
+        const getTables = () =>
+          ORDER.map(id => document.getElementById(id)).filter(Boolean);
 
-        function getItems() {
-          return ORDER.map(id => {
-            const tbl = document.getElementById(id);
-            if (!tbl) return null;
-            const container = tbl.closest('.table-container') || tbl.parentElement;
-            return { id, tbl, container };
-          }).filter(Boolean);
-        }
-
-        // Enforce fixed order once (always BC, BearC, BullR, BearR)
         function reorderFixed() {
-          const items = getItems();
-          if (!grid || items.length === 0) return;
+          if (!grid) return;
           for (const id of ORDER) {
-            const it = items.find(x => x.id === id);
-            if (it) grid.appendChild(it.container);
+            const tbl = document.getElementById(id);
+            if (!tbl) continue;
+            const container = tbl.closest('.table-container') || tbl.parentElement;
+            if (container) grid.appendChild(container);
           }
         }
 
-        function setVertical(on) {
-          const items = getItems();
-          items.forEach(({ tbl }) => tbl.classList.toggle('vertical-table', on));
-          if (grid) grid.classList.toggle('pivot-vertical-container', on);
-          btn.textContent = on ? 'Pivot: Horizontal' : 'Pivot: Vertical';
+        function resetToHorizontal() {
+          getTables().forEach(t => t.classList.remove('vertical-table'));
+          grid?.classList.remove('pivot-vertical-container');
+          btn && (btn.textContent = 'Pivot: Vertical');
         }
 
-        // Init: lock order and default to horizontal
+        function setVertical(on) {
+          getTables().forEach(t => t.classList.toggle('vertical-table', on));
+          grid?.classList.toggle('pivot-vertical-container', on);
+          btn && (btn.textContent = on ? 'Pivot: Horizontal' : 'Pivot: Vertical');
+        }
+
+        // Init: enforce order and force old horizontal view
         reorderFixed();
+        resetToHorizontal();
         let vertical = false;
 
-        btn.addEventListener('click', () => {
+        btn?.addEventListener('click', () => {
           vertical = !vertical;
           setVertical(vertical);
         });
+
+        // Remove any old BC-only toggle if it exists
+        document.getElementById('bcToggleBtn')?.remove();
       })();
     </script>
   </body>

@@ -211,16 +211,20 @@
     <script src="pivotPanel.js?v=5" defer></script>
     <script src="scanner.js?v=13" defer></script>
 
-    <!-- Pivot layout toggle (fixed order + vertical/horizontal, defaults to horizontal) -->
+    <!-- Pivot layout toggle (stack grid into one column; keep table rows intact) -->
     <script>
       (() => {
         const ORDER = ['pivotTableBullCont','pivotTableBearCont','pivotTableBullRev','pivotTableBearRev'];
         const btn   = document.getElementById('pivotToggleBtn');
         const grid  = document.getElementById('pivotGrid');
 
-        const getTables = () =>
-          ORDER.map(id => document.getElementById(id)).filter(Boolean);
+        // Ensure any old card/vertical classes are cleared (from earlier experiments)
+        function scrubOldVertical() {
+          ORDER.forEach(id => document.getElementById(id)?.classList.remove('vertical-table'));
+          grid?.classList.remove('pivot-vertical-container'); // legacy wrapper class
+        }
 
+        // Keep the four tables in the fixed order
         function reorderFixed() {
           if (!grid) return;
           for (const id of ORDER) {
@@ -231,30 +235,22 @@
           }
         }
 
-        function resetToHorizontal() {
-          getTables().forEach(t => t.classList.remove('vertical-table'));
-          grid?.classList.remove('pivot-vertical-container');
-          btn && (btn.textContent = 'Pivot: Vertical');
+        function setStacked(on) {
+          if (!grid) return;
+          grid.classList.toggle('stacked', on);     // <-- only the grid changes
+          btn.textContent = on ? 'Pivot: Grid' : 'Pivot: Vertical';
         }
 
-        function setVertical(on) {
-          getTables().forEach(t => t.classList.toggle('vertical-table', on));
-          grid?.classList.toggle('pivot-vertical-container', on);
-          btn && (btn.textContent = on ? 'Pivot: Horizontal' : 'Pivot: Vertical');
-        }
-
-        // Init: enforce order and force old horizontal view
+        // Init: horizontal grid (2 cols), fixed order
+        scrubOldVertical();
         reorderFixed();
-        resetToHorizontal();
-        let vertical = false;
+        setStacked(false);
 
-        btn?.addEventListener('click', () => {
-          vertical = !vertical;
-          setVertical(vertical);
+        let stacked = false;
+        btn.addEventListener('click', () => {
+          stacked = !stacked;
+          setStacked(stacked);
         });
-
-        // Remove any old BC-only toggle if it exists
-        document.getElementById('bcToggleBtn')?.remove();
       })();
     </script>
   </body>

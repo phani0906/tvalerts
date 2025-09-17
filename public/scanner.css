@@ -540,6 +540,9 @@ table td {
 /* Neutral diff style (used for -$0.30 < diff < 0) */
 .diff-neutral { opacity: 0.85; }
 
+/* When toggled, stack the four pivot tables vertically */
+.pivot-grid.stacked { grid-template-columns: 1fr !important; }
+
 
 
 

@@ -25,7 +25,7 @@
               <th>Pivot Rel.</th>
               <th>Open/Price</th>
               <th>Mid-point</th>
-              <th>PDH</th>
+              <th>AI 5 min</th>       <!-- NEW: replaces PDH -->
               <th>Daily MA20</th>
               <th>Pivot Levels</th>
             </tr>
@@ -44,7 +44,7 @@
               <th>Pivot Rel.</th>
               <th>Open/Price</th>
               <th>Mid-point</th>
-              <th>PDH</th>
+              <th>AI 5 min</th>       <!-- NEW: replaces PDH -->
               <th>Daily MA20</th>
               <th>Pivot Levels</th>
             </tr>
@@ -63,7 +63,7 @@
               <th>Pivot Rel.</th>
               <th>Open/Price</th>
               <th>Mid-point</th>
-              <th>PDH</th>
+              <th>AI 5 min</th>       <!-- NEW: replaces PDH -->
               <th>Daily MA20</th>
               <th>Pivot Levels</th>
             </tr>
@@ -82,7 +82,7 @@
               <th>Pivot Rel.</th>
               <th>Open/Price</th>
               <th>Mid-point</th>
-              <th>PDH</th>
+              <th>AI 5 min</th>       <!-- NEW: replaces PDH -->
               <th>Daily MA20</th>
               <th>Pivot Levels</th>
             </tr>
@@ -93,7 +93,7 @@
     </div>
     <!-- ===== /Pivot/CPR ===== -->
 
-    <!-- ===== 1h tables (moved directly below pivots) ===== -->
+    <!-- ===== 1h tables (kept directly below pivots) ===== -->
     <div class="table-container buy-table">
       <h3 class="table-title buy-title">🔥 Green Zone — 1h</h3>
       <table id="scannerTableBuy1h">
@@ -208,7 +208,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="pivotPanel.js?v=5" defer></script>
+    <script src="pivotPanel.js?v=6" defer></script>
     <script src="scanner.js?v=13" defer></script>
 
     <!-- Pivot layout toggle: stacks the four pivot tables only (rows unchanged) -->
@@ -218,13 +218,6 @@
         const btn   = document.getElementById('pivotToggleBtn');
         const grid  = document.getElementById('pivotGrid');
 
-        // clean any old vertical classes
-        function scrubOldVertical() {
-          ORDER.forEach(id => document.getElementById(id)?.classList.remove('vertical-table'));
-          grid?.classList.remove('pivot-vertical-container');
-        }
-
-        // keep the four tables in fixed order
         function reorderFixed() {
           if (!grid) return;
           for (const id of ORDER) {
@@ -241,7 +234,6 @@
           btn.textContent = on ? 'Pivot: Grid' : 'Pivot: Vertical';
         }
 
-        scrubOldVertical();
         reorderFixed();
         setStacked(false);
 

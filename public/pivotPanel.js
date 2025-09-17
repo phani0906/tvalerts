@@ -5,8 +5,8 @@
     const TREND = {
         BULL_CONT: 'Bullish Continuation',
         BEAR_CONT: 'Bearish Continuation',
-        BULL_REV: 'Bullish Trend Reversal',
-        BEAR_REV: 'Bearish Trend Reversal'
+        BULL_REV:  'Bullish Trend Reversal',
+        BEAR_REV:  'Bearish Trend Reversal'
     };
 
     // ===== Tolerance (from server) =====
@@ -16,14 +16,13 @@
             const r = await fetch('/tolerance', { cache: 'no-store' });
             if (r.ok) TOL = Object.assign(TOL, await r.json());
             window.PIVOT_TOLERANCE = TOL;
-        } catch { }
+        } catch {}
     })();
 
     // ===== Live touch flags & pivot cache =====
-    const TOUCH = new Map();           // ticker -> { mid:boolean, pdh:boolean }
-    let LAST_PIVOT_ROWS = [];          // cache latest rows so we can repaint on price updates
+    const TOUCH = new Map();  // ticker -> { mid:boolean, pdh:boolean }
+    let LAST_PIVOT_ROWS = [];
 
-    // repaint helper after we update TOUCH
     function repaintIfPossible() {
         if (Array.isArray(LAST_PIVOT_ROWS) && LAST_PIVOT_ROWS.length) {
             paint(LAST_PIVOT_ROWS);
@@ -31,13 +30,9 @@
     }
 
     // ===== utils =====
-    function fmt2(v) {
-        if (v == null || v === '') return '';
-        const n = Number(v);
-        return Number.isNaN(n) ? '' : n.toFixed(2);
-    }
+    function fmt2(v) { if (v == null || v === '') return ''; const n = Number(v); return Number.isNaN(n) ? '' : n.toFixed(2); }
     const isNum = v => v != null && isFinite(Number(v));
-    const num = v => Number(v);
+    const num   = v => Number(v);
 
     function applyNearZeroBlink(td, diff, tol) {
         td.classList.remove('near-zero', 'blink');
@@ -53,6 +48,20 @@
         return s;
     }
 
+    // ===== AI 5m signal source (from scanner.js) =====
+    function getAISignal(ticker) {
+        const map = window.AI_5M;
+        if (!map || typeof map.get !== 'function') return '';
+        const key = String(ticker || '').toUpperCase();
+        const v = map.get(key);
+        if (!v) return '';
+        const s = (typeof v === 'string') ? v : (v.side || v.signal || '');
+        const up = String(s).toUpperCase();
+        if (up.includes('SELL') || up.includes('RED') || up.includes('SHORT')) return 'SELL';
+        if (up.includes('BUY')  || up.includes('GREEN')|| up.includes('LONG'))  return 'BUY';
+        return '';
+    }
+
     // ===== table painter =====
     function renderPivotGroup(tableId, rows) {
         try {
@@ -66,16 +75,16 @@
 
             for (const r of list) {
                 const ticker = r.ticker ?? r.Ticker ?? '';
-                const flags = TOUCH.get(ticker) || { mid: false, pdh: false };
+                const flags  = TOUCH.get(ticker) || { mid: false, pdh: false };
 
                 const relText =
                     r.relationshipLabel ??
                     r.pivotRelationship ??
                     r.relationship ?? '';
 
-                const midRaw = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-                const pdhRaw = r.pdh;
-                const openRaw = r.openPrice ?? r.open ?? r.Open;
+                const midRaw   = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
+                /* const pdhRaw = r.pdh;  // (commented) no PDH column for now */
+                const openRaw  = r.openPrice ?? r.open ?? r.Open;
                 const priceRaw = r.currentPrice ?? r.price ?? r.Price;
 
                 const tr = document.createElement('tr');
@@ -108,8 +117,8 @@
                 const w = r.cprWidth, rk = r.cprRank, pct = r.cprPercentile;
                 if (w != null) {
                     const pctTxt = (pct != null) ? ` • pct ${(pct * 100).toFixed(0)}%` : '';
-                    const rkTxt = (rk != null) ? ` • rank ${rk}/10` : '';
-                    badge.title = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
+                    const rkTxt  = (rk != null) ? ` • rank ${rk}/10` : '';
+                    badge.title  = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
                 }
                 td.appendChild(document.createTextNode(' '));
                 td.appendChild(badge);
@@ -124,11 +133,11 @@
 
                 // --- Open / Price
                 td = document.createElement('td');
-                const openVal = isNum(openRaw) ? num(openRaw) : null;
+                const openVal  = isNum(openRaw)  ? num(openRaw)  : null;
                 const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
 
                 if (openVal != null || priceVal != null) {
-                    const openSpan = document.createElement('span');
+                    const openSpan  = document.createElement('span');
                     const priceSpan = document.createElement('span');
 
                     if (openVal != null) openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
@@ -156,45 +165,25 @@
                     span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
                     // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
-                    if (diff < -0.30) {
-                        span.className = 'diff-down';
-                    } else if (diff >= 0) {
-                        span.className = 'diff-up';
-                    } else {
-                        span.className = 'diff-neutral';
-                    }
+                    if (diff < -0.30)      span.className = 'diff-down';
+                    else if (diff >= 0)    span.className = 'diff-up';
+                    else                   span.className = 'diff-neutral';
 
                     td.appendChild(span);
-
-                    // keep your near-zero blink using existing tolerance
                     applyNearZeroBlink(td, diff, TOL.pivot_mid);
                 }
                 tr.appendChild(td);
 
-                // --- PDH ---
+                // --- AI 5 min (replaces PDH)
                 td = document.createElement('td');
-                const pdhVal = isNum(pdhRaw) ? num(pdhRaw) : null;
-                if (pdhVal != null && priceVal != null) {
-                    const diff = priceVal - pdhVal;
-
-                    if (flags.pdh) td.appendChild(greenTick());  // ✔ comes first
-
-                    const span = document.createElement('span');
-                    span.textContent = `${fmt2(pdhVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-
-                    // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
-                    if (diff < -0.30) {
-                        span.className = 'diff-down';
-                    } else if (diff >= 0) {
-                        span.className = 'diff-up';
-                    } else {
-                        span.className = 'diff-neutral';
-                    }
-
-                    td.appendChild(span);
-
-                    // reuse same blink tolerance as mid-point unless you want a separate one
-                    applyNearZeroBlink(td, diff, TOL.pivot_mid);
+                const ai = getAISignal(ticker);
+                if (ai) {
+                    const chip = document.createElement('span');
+                    chip.textContent = ai;
+                    chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
+                    td.appendChild(chip);
+                } else {
+                    td.textContent = '';
                 }
                 tr.appendChild(td);
 
@@ -203,7 +192,7 @@
                 const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
                 if (maVal != null) {
                     if (priceVal != null && maVal !== 0) {
-                        const pct = ((priceVal - maVal) / maVal) * 100;
+                        const pct  = ((priceVal - maVal) / maVal) * 100;
                         const span = document.createElement('span');
                         span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
                         span.className = pct >= 0 ? 'diff-up' : 'diff-down';
@@ -254,11 +243,9 @@
 
                         const line1 = document.createElement('div');
                         line1.className = 'pivot-text-key';
-
-                        // H -> PDH, L -> PDL (UI label only)
+                        // Rename H→PDH and L→PDL in UI
                         const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
                         line1.textContent = keyLabel;
-
                         if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
 
                         const line2 = document.createElement('div');
@@ -280,7 +267,7 @@
                     td.appendChild(row);
 
                     if (leftIdx !== -1 && rightIdx !== -1) {
-                        const openPriceTd = tr.children[2]; // Open/Price column
+                        const openPriceTd = tr.children[2]; // Open/Price column index (after removing PDH)
                         const priceSpan = openPriceTd && openPriceTd.querySelector('span:last-child');
                         if (priceSpan) priceSpan.classList.add('pivot-hl-price');
                     }
@@ -308,19 +295,18 @@
     function paint(rows) {
         const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
 
-        // helpful debug
         console.log('[pivot] counts', {
-          total: (rows || []).length,
-          bullCont: bullCont.length,
-          bearCont: bearCont.length,
-          bullRev: bullRev.length,
-          bearRev: bearRev.length
+            total: (rows || []).length,
+            bullCont: bullCont.length,
+            bearCont: bearCont.length,
+            bullRev: bullRev.length,
+            bearRev: bearRev.length
         });
 
         renderPivotGroup('pivotTableBullCont', bullCont);
         renderPivotGroup('pivotTableBearCont', bearCont);
-        renderPivotGroup('pivotTableBullRev', bullRev);
-        renderPivotGroup('pivotTableBearRev', bearRev);
+        renderPivotGroup('pivotTableBullRev',  bullRev);
+        renderPivotGroup('pivotTableBearRev',  bearRev);
     }
 
     // ===== initial boot =====
@@ -329,7 +315,7 @@
             const r = await fetch('/pivot/latest', { cache: 'no-store' });
             LAST_PIVOT_ROWS = await r.json();
             paint(LAST_PIVOT_ROWS);
-        } catch { }
+        } catch {}
     })();
 
     // ===== sockets =====
@@ -346,7 +332,6 @@
                 pdh: !!data.TouchPDH
             });
         }
-        // ✅ repaint so ticks show up immediately
         repaintIfPossible();
     });
 })();

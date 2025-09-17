@@ -85,6 +85,17 @@ th {
 .signal-buy { color: #00FF00; }
 .signal-sell { color: #FF4500; }
 
+/* NEW: AI chip */
+.ai-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.95em;
+  background: transparent;
+}
+
 /* Diff colors */
 .diff-up { color: #32CD32; font-weight: 600; font-size: 0.9em; font-style: italic; }
 .diff-down { color: #FF6347; font-weight: 600; font-size: 0.9em; font-style: italic; }
@@ -319,7 +330,7 @@ table td {
 #pivotTableBearCont td:nth-child(4),
 #pivotTableBearRev td:nth-child(4) { width: 10%; }
 
-/* PDH (NEW) */
+/* AI 5 min (replaces PDH at column 5) */
 #pivotTableBullCont th:nth-child(5),
 #pivotTableBullRev th:nth-child(5),
 #pivotTableBearCont th:nth-child(5),
@@ -329,7 +340,7 @@ table td {
 #pivotTableBearCont td:nth-child(5),
 #pivotTableBearRev td:nth-child(5) { width: 10%; }
 
-/* Daily MA20 (shifted to col 6) */
+/* Daily MA20 (col 6) */
 #pivotTableBullCont th:nth-child(6),
 #pivotTableBullRev th:nth-child(6),
 #pivotTableBearCont th:nth-child(6),
@@ -339,7 +350,7 @@ table td {
 #pivotTableBearCont td:nth-child(6),
 #pivotTableBearRev td:nth-child(6) { width: 10%; }
 
-/* Pivot Levels (shifted to col 7, takes remaining width) */
+/* Pivot Levels (col 7, takes remaining width) */
 #pivotTableBullCont th:nth-child(7),
 #pivotTableBullRev th:nth-child(7),
 #pivotTableBearCont th:nth-child(7),
@@ -542,9 +553,3 @@ table td {
 
 /* When toggled, stack the four pivot tables vertically */
 .pivot-grid.stacked { grid-template-columns: 1fr !important; }
-
-
-
-
-
-

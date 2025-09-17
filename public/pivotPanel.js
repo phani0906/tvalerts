@@ -30,7 +30,11 @@
     }
 
     // ===== utils =====
-    function fmt2(v) { if (v == null || v === '') return ''; const n = Number(v); return Number.isNaN(n) ? '' : n.toFixed(2); }
+    function fmt2(v) { 
+        if (v == null || v === '') return ''; 
+        const n = Number(v); 
+        return Number.isNaN(n) ? '' : n.toFixed(2); 
+    }
     const isNum = v => v != null && isFinite(Number(v));
     const num   = v => Number(v);
 
@@ -58,7 +62,7 @@
         const s = (typeof v === 'string') ? v : (v.side || v.signal || '');
         const up = String(s).toUpperCase();
         if (up.includes('SELL') || up.includes('RED') || up.includes('SHORT')) return 'SELL';
-        if (up.includes('BUY')  || up.includes('GREEN')|| up.includes('LONG'))  return 'BUY';
+        if (up.includes('BUY')  || up.includes('GREEN') || up.includes('LONG'))  return 'BUY';
         return '';
     }
 
@@ -77,13 +81,8 @@
                 const ticker = r.ticker ?? r.Ticker ?? '';
                 const flags  = TOUCH.get(ticker) || { mid: false, pdh: false };
 
-                const relText =
-                    r.relationshipLabel ??
-                    r.pivotRelationship ??
-                    r.relationship ?? '';
-
+                const relText = r.relationshipLabel ?? r.pivotRelationship ?? r.relationship ?? '';
                 const midRaw   = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-                /* const pdhRaw = r.pdh;  // (commented) no PDH column for now */
                 const openRaw  = r.openPrice ?? r.open ?? r.Open;
                 const priceRaw = r.currentPrice ?? r.price ?? r.Price;
 
@@ -94,7 +93,7 @@
                 td.textContent = ticker;
                 tr.appendChild(td);
 
-                // --- Pivot Relationship (short + CPR badge)
+                // --- Pivot Relationship + CPR Badge
                 td = document.createElement('td');
                 const relMap = {
                     'Higher Value': 'HV',
@@ -142,6 +141,7 @@
 
                     if (openVal != null) openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
                     if (priceVal != null) {
+                        if (flags.mid) td.appendChild(greenTick());
                         priceSpan.textContent = fmt2(priceVal);
                         if (openVal != null) {
                             if (priceVal > openVal) priceSpan.style.color = 'limegreen';
@@ -153,18 +153,15 @@
                 }
                 tr.appendChild(td);
 
-                // --- Mid-point ---
+                // --- Mid-point
                 td = document.createElement('td');
                 const midVal = isNum(midRaw) ? num(midRaw) : null;
                 if (midVal != null && priceVal != null) {
                     const diff = priceVal - midVal;
 
-                    if (flags.mid) td.appendChild(greenTick());  // ✔ comes first
-
                     const span = document.createElement('span');
                     span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
-                    // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
                     if (diff < -0.30)      span.className = 'diff-down';
                     else if (diff >= 0)    span.className = 'diff-up';
                     else                   span.className = 'diff-neutral';
@@ -174,7 +171,7 @@
                 }
                 tr.appendChild(td);
 
-                // --- AI 5 min (replaces PDH)
+                // --- AI 5 min
                 td = document.createElement('td');
                 const ai = getAISignal(ticker);
                 if (ai) {
@@ -182,156 +179,39 @@
                     chip.textContent = ai;
                     chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
                     td.appendChild(chip);
-                } else {
-                    td.textContent = '';
                 }
                 tr.appendChild(td);
 
-                // --- Daily MA20 (with % diff)
+                // --- Daily MA20
                 td = document.createElement('td');
                 const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
-                if (maVal != null) {
-                    if (priceVal != null && maVal !== 0) {
-                        const pct  = ((priceVal - maVal) / maVal) * 100;
-                        const span = document.createElement('span');
-                        span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
-                        span.className = pct >= 0 ? 'diff-up' : 'diff-down';
-                        td.appendChild(span);
-                    } else {
-                        td.textContent = fmt2(maVal);
-                    }
-                }
-                tr.appendChild(td);
-
-                // --- Pivot Levels (sorted, BC blue & neighbors highlighted)
-                td = document.createElement('td');
-                const pl = r.pivotLevels || null;
-                if (pl) {
-                    let levels = [
-                        { key: 'R5', val: pl.R5 },
-                        { key: 'R4', val: pl.R4 },
-                        { key: 'R3', val: pl.R3 },
-                        { key: 'H',  val: pl.prevHigh },
-                        { key: 'TC', val: pl.TC },
-                        { key: 'P',  val: pl.P },
-                        { key: 'BC', val: pl.BC },
-                        { key: 'L',  val: pl.prevLow },
-                        { key: 'S3', val: pl.S3 },
-                        { key: 'S4', val: pl.S4 },
-                        { key: 'S5', val: pl.S5 },
-                    ].filter(l => isNum(l.val));
-
-                    levels.sort((a, b) => a.val - b.val);
-
-                    let leftIdx = -1, rightIdx = -1;
-                    if (isNum(priceVal) && levels.length > 0) {
-                        for (let i = 0; i < levels.length - 1; i++) {
-                            const a = levels[i].val, b = levels[i + 1].val;
-                            if (priceVal >= a && priceVal <= b) { leftIdx = i; rightIdx = i + 1; break; }
-                        }
-                        if (leftIdx === -1 && priceVal < levels[0].val && levels.length >= 2) { leftIdx = 0; rightIdx = 1; }
-                        if (leftIdx === -1 && priceVal > levels[levels.length - 1].val && levels.length >= 2) { leftIdx = levels.length - 2; rightIdx = levels.length - 1; }
-                    }
-
-                    const row = document.createElement('div');
-                    row.className = 'pivot-text-row';
-
-                    levels.forEach((lvl, idx) => {
-                        const block = document.createElement('span');
-                        block.className = 'pivot-text-block';
-                        if (idx === leftIdx || idx === rightIdx) block.classList.add('pivot-hl');
-
-                        const line1 = document.createElement('div');
-                        line1.className = 'pivot-text-key';
-                        // Rename H→PDH and L→PDL in UI
-                        const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
-                        line1.textContent = keyLabel;
-                        if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
-
-                        const line2 = document.createElement('div');
-                        line2.className = 'pivot-text-price';
-                        line2.textContent = fmt2(lvl.val);
-
-                        block.appendChild(line1);
-                        block.appendChild(line2);
-                        row.appendChild(block);
-
-                        if (idx < levels.length - 1) {
-                            const sep = document.createElement('span');
-                            sep.className = 'pivot-text-sep';
-                            sep.textContent = ' | ';
-                            row.appendChild(sep);
-                        }
-                    });
-
-                    td.appendChild(row);
-
-                    if (leftIdx !== -1 && rightIdx !== -1) {
-                        const openPriceTd = tr.children[2]; // Open/Price column index (after removing PDH)
-                        const priceSpan = openPriceTd && openPriceTd.querySelector('span:last-child');
-                        if (priceSpan) priceSpan.classList.add('pivot-hl-price');
-                    }
+                if (maVal != null && priceVal != null && maVal !== 0) {
+                    const pct  = ((priceVal - maVal) / maVal) * 100;
+                    const span = document.createElement('span');
+                    span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${fmt2(pct)}%)`;
+                    td.appendChild(span);
                 }
                 tr.appendChild(td);
 
                 tbody.appendChild(tr);
+
+                // --- AI blink logic
+                const prev = AI_SIGNAL_PREV.get(ticker);
+                if (prev && prev !== ai) {
+                    td.classList.add('ai-blink');
+                    if (AI_SIGNAL_BLINK.has(ticker)) clearTimeout(AI_SIGNAL_BLINK.get(ticker));
+                    const tId = setTimeout(() => {
+                        td.classList.remove('ai-blink');
+                        AI_SIGNAL_BLINK.delete(ticker);
+                    }, 10 * 60 * 1000);
+                    AI_SIGNAL_BLINK.set(ticker, tId);
+                }
+                AI_SIGNAL_PREV.set(ticker, ai);
             }
-        } catch (err) {
-            console.error(`[pivot] render error for #${tableId}:`, err);
+        } catch (e) {
+            console.error('renderPivotGroup error', e);
         }
     }
 
-    // ===== split by trend & paint =====
-    const lc = s => String(s || '').toLowerCase();
-    function splitByTrend(rows) {
-        const list = Array.isArray(rows) ? rows : [];
-        return {
-            bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
-            bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-            bullRev:  list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-            bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
-        };
-    }
-    function paint(rows) {
-        const { bullCont, bearCont, bullRev, bearRev } = splitByTrend(rows);
-
-        console.log('[pivot] counts', {
-            total: (rows || []).length,
-            bullCont: bullCont.length,
-            bearCont: bearCont.length,
-            bullRev: bullRev.length,
-            bearRev: bearRev.length
-        });
-
-        renderPivotGroup('pivotTableBullCont', bullCont);
-        renderPivotGroup('pivotTableBearCont', bearCont);
-        renderPivotGroup('pivotTableBullRev',  bullRev);
-        renderPivotGroup('pivotTableBearRev',  bearRev);
-    }
-
-    // ===== initial boot =====
-    (async function boot() {
-        try {
-            const r = await fetch('/pivot/latest', { cache: 'no-store' });
-            LAST_PIVOT_ROWS = await r.json();
-            paint(LAST_PIVOT_ROWS);
-        } catch {}
-    })();
-
-    // ===== sockets =====
-    socket.on('pivotUpdate', (rows) => {
-        LAST_PIVOT_ROWS = Array.isArray(rows) ? rows : [];
-        paint(LAST_PIVOT_ROWS);
-    });
-
-    socket.on('priceUpdate', (snapshot) => {
-        if (!snapshot || typeof snapshot !== 'object') return;
-        for (const [t, data] of Object.entries(snapshot)) {
-            TOUCH.set(t, {
-                mid: !!data.TouchMid,
-                pdh: !!data.TouchPDH
-            });
-        }
-        repaintIfPossible();
-    });
+    window.renderPivotGroup = renderPivotGroup;
 })();

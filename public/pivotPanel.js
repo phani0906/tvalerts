@@ -154,12 +154,23 @@
 
                     const span = document.createElement('span');
                     span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-                    span.className = diff >= 0 ? 'diff-up' : 'diff-down';
+
+                    // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
+                    if (diff < -0.30) {
+                        span.className = 'diff-down';
+                    } else if (diff >= 0) {
+                        span.className = 'diff-up';
+                    } else {
+                        span.className = 'diff-neutral';
+                    }
+
                     td.appendChild(span);
 
+                    // keep your near-zero blink using existing tolerance
                     applyNearZeroBlink(td, diff, TOL.pivot_mid);
                 }
                 tr.appendChild(td);
+
 
                 // --- PDH ---
                 td = document.createElement('td');
@@ -171,9 +182,19 @@
 
                     const span = document.createElement('span');
                     span.textContent = `${fmt2(pdhVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
-                    span.className = diff >= 0 ? 'diff-up' : 'diff-down';
+
+                    // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
+                    if (diff < -0.30) {
+                        span.className = 'diff-down';
+                    } else if (diff >= 0) {
+                        span.className = 'diff-up';
+                    } else {
+                        span.className = 'diff-neutral';
+                    }
+
                     td.appendChild(span);
 
+                    // reuse same blink tolerance as mid-point unless you want a separate one
                     applyNearZeroBlink(td, diff, TOL.pivot_mid);
                 }
                 tr.appendChild(td);

@@ -18,6 +18,7 @@
           grid-template-columns: 1fr;
         }
       }
+
       /* Floating toggle (upper-right) */
       .pivot-toggle-btn {
         position: fixed;
@@ -33,14 +34,10 @@
         cursor: pointer;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
       }
-      .pivot-toggle-btn:hover {
-        background: #444;
-      }
+      .pivot-toggle-btn:hover { background: #444; }
 
       /* Vertical card layout for ANY pivot table */
-      .vertical-table thead {
-        display: none;
-      }
+      .vertical-table thead { display: none; }
       .vertical-table tbody tr {
         display: flex;
         flex-direction: column;
@@ -48,36 +45,29 @@
         border-radius: 10px;
         padding: 8px 10px;
         margin-bottom: 10px;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(255,255,255,0.02);
       }
-      .vertical-table tbody tr td {
-        border: none !important;
-        padding: 4px 0;
-      }
+      .vertical-table tbody tr td { border: none !important; padding: 4px 0; }
       .vertical-table tbody tr td:first-child {
-        font-weight: 700;
-        font-size: 1.05em;
-        opacity: 0.95;
-        margin-bottom: 2px;
+        font-weight: 700; font-size: 1.05em; opacity: 0.95; margin-bottom: 2px;
       }
 
+      /* When stacked vertically, force the grid wrapper to behave like a block */
+      .pivot-vertical-container.pivot-grid { display: block; }
+
       /* Optional: when stacked, give each container full width with a little spacing */
-      .pivot-vertical-container .table-container {
-        width: 100%;
-        margin-bottom: 12px;
-      }
+      .pivot-vertical-container .table-container { width: 100%; margin-bottom: 12px; }
     </style>
   </head>
 
   <body>
     <!-- Top scrolling quote -->
     <div id="quote-bar"><span id="quote-text">Loading quote...</span></div>
-    <button id="pivotToggleBtn" class="pivot-toggle-btn">
-      Pivot: Vertical
-    </button>
+    <button id="pivotToggleBtn" class="pivot-toggle-btn">Pivot: Vertical</button>
 
     <!-- ===== Pivot/CPR (four tables) ===== -->
-    <div class="pivot-grid">
+    <div class="pivot-grid" id="pivotGrid">
+      <!-- 1) Bullish Continuation -->
       <div class="table-container buy-table">
         <h3 class="table-title buy-title">📈 Bullish Continuation</h3>
         <table id="pivotTableBullCont">
@@ -96,24 +86,7 @@
         </table>
       </div>
 
-      <div class="table-container buy-table">
-        <h3 class="table-title buy-title">🔁 Bullish Trend Reversal</h3>
-        <table id="pivotTableBullRev">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Pivot Rel.</th>
-              <th>Open/Price</th>
-              <th>Mid-point</th>
-              <th>PDH</th>
-              <th>Daily MA20</th>
-              <th>Pivot Levels</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
+      <!-- 2) Bearish Continuation (moved above Bullish TR) -->
       <div class="table-container sell-table">
         <h3 class="table-title sell-title">📉 Bearish Continuation</h3>
         <table id="pivotTableBearCont">
@@ -132,6 +105,26 @@
         </table>
       </div>
 
+      <!-- 3) Bullish Trend Reversal -->
+      <div class="table-container buy-table">
+        <h3 class="table-title buy-title">🔁 Bullish Trend Reversal</h3>
+        <table id="pivotTableBullRev">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Pivot Rel.</th>
+              <th>Open/Price</th>
+              <th>Mid-point</th>
+              <th>PDH</th>
+              <th>Daily MA20</th>
+              <th>Pivot Levels</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- 4) Bearish Trend Reversal -->
       <div class="table-container sell-table">
         <h3 class="table-title sell-title">🔁 Bearish Trend Reversal</h3>
         <table id="pivotTableBearRev">
@@ -269,88 +262,50 @@
     <!-- Scripts -->
     <script src="pivotPanel.js?v=5" defer></script>
     <script src="scanner.js?v=13" defer></script>
+
+    <!-- Pivot layout toggle (fixed order + vertical/horizontal) -->
     <script>
       (() => {
-        // IDs of the four pivot tables we want to control
-        const PIVOT_IDS = [
-          "pivotTableBullCont",
-          "pivotTableBearCont",
-          "pivotTableBullRev",
-          "pivotTableBearRev",
-        ];
+        // Desired fixed order
+        const ORDER = ['pivotTableBullCont','pivotTableBearCont','pivotTableBullRev','pivotTableBearRev'];
 
-        const btn = document.getElementById("pivotToggleBtn");
-        if (!btn) return;
+        const btn = document.getElementById('pivotToggleBtn');
+        const grid = document.getElementById('pivotGrid');
 
-        // Find containers for each table and their common parent
-        function getContainers() {
-          const items = [];
-          for (const id of PIVOT_IDS) {
+        function getItems() {
+          return ORDER.map(id => {
             const tbl = document.getElementById(id);
-            if (!tbl) continue;
-            const container =
-              tbl.closest(".table-container") || tbl.parentElement;
-            if (container)
-              items.push({
-                id,
-                table: tbl,
-                container,
-                parent: container.parentNode,
-              });
-          }
-          return items;
+            if (!tbl) return null;
+            const container = tbl.closest('.table-container') || tbl.parentElement;
+            return { id, tbl, container };
+          }).filter(Boolean);
         }
 
+        // Enforce fixed order once (always BC, BearC, BullR, BearR)
+        function reorderFixed() {
+          const items = getItems();
+          if (!grid || items.length === 0) return;
+          for (const id of ORDER) {
+            const it = items.find(x => x.id === id);
+            if (it) grid.appendChild(it.container);
+          }
+        }
+
+        function setVertical(on) {
+          const items = getItems();
+          items.forEach(({ tbl }) => tbl.classList.toggle('vertical-table', on));
+          if (grid) grid.classList.toggle('pivot-vertical-container', on);
+          btn.textContent = on ? 'Pivot: Horizontal' : 'Pivot: Vertical';
+        }
+
+        // Init: lock order and default to horizontal
+        reorderFixed();
         let vertical = false;
-        let savedOrder = null; // remember original order to restore
 
-        function applyMode() {
-          const items = getContainers();
-          if (items.length === 0) return;
-
-          // Toggle class on the four pivot tables only
-          for (const { table } of items) {
-            table.classList.toggle("vertical-table", vertical);
-          }
-
-          // Ensure parent can stack nicely in vertical mode (non-destructive)
-          const parent = items[0].parent;
-          if (parent)
-            parent.classList.toggle("pivot-vertical-container", vertical);
-
-          if (vertical) {
-            // Save original order (only once)
-            if (!savedOrder) {
-              savedOrder = items.map(({ container, parent }) => ({
-                el: container,
-                parent,
-                next: container.nextSibling,
-              }));
-            }
-            // Reorder containers to: BC, BearC, BullR, BearR
-            for (const id of PIVOT_IDS) {
-              const it = items.find((x) => x.id === id);
-              if (it && it.parent) it.parent.appendChild(it.container);
-            }
-            btn.textContent = "Pivot: Horizontal";
-          } else {
-            // Restore original order
-            if (savedOrder) {
-              for (const { el, parent, next } of savedOrder) {
-                if (!parent) continue;
-                parent.insertBefore(el, next);
-              }
-            }
-            btn.textContent = "Pivot: Vertical";
-          }
-        }
-
-        btn.addEventListener("click", () => {
+        btn.addEventListener('click', () => {
           vertical = !vertical;
-          applyMode();
+          setVertical(vertical);
         });
-
-        // If you had a previous BC-only toggle, consider removing it to avoid duplicates.
       })();
     </script>
   </body>

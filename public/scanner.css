@@ -163,19 +163,18 @@ td:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; 
 
 /* Make the (±diff) show even with table-layout:fixed */
 .diff-up, .diff-down {
-  display: inline;           /* put diff on its own line to avoid clipping */
-  white-space: normal;      /* allow wrapping inside the span */
-  overflow: visible;        /* don't clip the diff text */
-  text-overflow: clip;      /* disable ellipsis for the diff span */
-  font-size: 0.9em;         /* keep your compact look */
+  display: inline;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: 0.9em;
   font-style: italic;
 }
 
-/* Give the metric columns a bit more room across all tables
-   (columns 5, 6, 7 == MA20, VWAP, DayMid for 5m/15m/1h layouts) */
+/* Give the metric columns a bit more room across all tables */
 table th:nth-child(n+5),
 table td:nth-child(n+5) {
-  min-width: 128px;         /* bump if you still see clipping */
+  min-width: 128px;
 }
 
 /* Quote styling */
@@ -190,12 +189,12 @@ table td:nth-child(n+5) {
 .quote-box small {
   display: block;
   margin-top: 6px;
-  color: #6b7280; /* subtle author color */
+  color: #6b7280;
   font-weight: 400;
   font-style: normal;
 }
 
-/* ===== Title variant: white (same styling as your titles, just white) ===== */
+/* ===== Title variant: white ===== */
 .table-title.title-white {
   color: #ffffff;
   border: none;
@@ -204,7 +203,7 @@ table td:nth-child(n+5) {
   text-shadow: 0 0 10px rgba(255,255,255,0.35), 0 0 20px rgba(255,255,255,0.15);
 }
 
-/* ===== Scrolling marquee container ===== */
+/* ===== Scrolling marquee ===== */
 .table-title.title-white .marquee {
   position: relative;
   overflow: hidden;
@@ -212,24 +211,14 @@ table td:nth-child(n+5) {
   width: 100%;
   line-height: 1.4;
 }
-
-/* The scrolling text */
 .table-title.title-white .marquee span {
   display: inline-block;
-  padding-left: 100%;             /* start off-screen to the right */
+  padding-left: 100%;
   will-change: transform;
   animation: quote-marquee var(--marquee-duration, 30s) linear infinite;
   letter-spacing: 0.3px;
   opacity: 0.95;
 }
-
-/* Keyframes for scrolling left */
-@keyframes quote-marquee {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
-}
-
-/* Bar container stays the same */
 #quote-bar {
   width: 100%;
   overflow: hidden;
@@ -241,56 +230,40 @@ table td:nth-child(n+5) {
   padding: 8px 0;
   border-bottom: 2px solid #444;
 }
-
-/* The text starts OFF the right edge and slides to OFF the left edge,
-   then automatically restarts from the right (infinite). */
 #quote-bar #quote-text {
   display: inline-block;
   white-space: nowrap;
   will-change: transform;
   animation: quote-marquee var(--marquee-duration, 24s) linear infinite;
 }
-
 @keyframes quote-marquee {
-  0%   { transform: translateX(100%); }   /* start off the right */
-  100% { transform: translateX(-100%); }  /* end off the left  */
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
 
-/* remove stray list markers inside table containers (prevents yellow dots) */
+/* remove stray list markers inside table containers */
 .table-container ul,
 .table-container li {
   list-style: none !important;
   margin: 0 !important;
   padding: 0 !important;
 }
-
-/* if any tiny placeholder lines were left, hide them */
 .table-container .note,
 .table-container .placeholder,
 .table-container .skeleton {
   display: none !important;
 }
 
- /* Make all numeric values larger */
-table td {
-  font-size: 1em;   /* adjust to taste, 1.3em ≈ 30% larger */
-}
-
-/* Keep diff text consistent with main numbers */
-.diff-up, .diff-down {
-  font-size: 1em;     /* match the parent cell size */
-}
-
-#quoteBox {
-  font-size: 1.3em;   /* adjust to taste */
-}
+/* Numeric sizing */
+table td { font-size: 1em; }
+.diff-up, .diff-down { font-size: 1em; }
+#quoteBox { font-size: 1.3em; }
 
 .rel-green { color: #00FF00; font-weight: bold; }
 .rel-red   { color: #FF4500; font-weight: bold; }
 .rel-blue  { color: #1E90FF; font-weight: bold; }
-.rel-gray  { color: #A9A9A9; font-weight: bold; }
 
-/* Ticker */
+/* Column widths per pivot table */
 #pivotTableBullCont th:nth-child(1),
 #pivotTableBullRev th:nth-child(1),
 #pivotTableBearCont th:nth-child(1),
@@ -300,7 +273,6 @@ table td {
 #pivotTableBearCont td:nth-child(1),
 #pivotTableBearRev td:nth-child(1) { width: 6%; }
 
-/* Rel */
 #pivotTableBullCont th:nth-child(2),
 #pivotTableBullRev th:nth-child(2),
 #pivotTableBearCont th:nth-child(2),
@@ -310,7 +282,6 @@ table td {
 #pivotTableBearCont td:nth-child(2),
 #pivotTableBearRev td:nth-child(2) { width: 10%; }
 
-/* Open/Price */
 #pivotTableBullCont th:nth-child(3),
 #pivotTableBullRev th:nth-child(3),
 #pivotTableBearCont th:nth-child(3),
@@ -320,7 +291,6 @@ table td {
 #pivotTableBearCont td:nth-child(3),
 #pivotTableBearRev td:nth-child(3) { width: 10%; }
 
-/* Mid-point */
 #pivotTableBullCont th:nth-child(4),
 #pivotTableBullRev th:nth-child(4),
 #pivotTableBearCont th:nth-child(4),
@@ -330,7 +300,6 @@ table td {
 #pivotTableBearCont td:nth-child(4),
 #pivotTableBearRev td:nth-child(4) { width: 10%; }
 
-/* AI 5 min (replaces PDH at column 5) */
 #pivotTableBullCont th:nth-child(5),
 #pivotTableBullRev th:nth-child(5),
 #pivotTableBearCont th:nth-child(5),
@@ -340,7 +309,6 @@ table td {
 #pivotTableBearCont td:nth-child(5),
 #pivotTableBearRev td:nth-child(5) { width: 10%; }
 
-/* Daily MA20 (col 6) */
 #pivotTableBullCont th:nth-child(6),
 #pivotTableBullRev th:nth-child(6),
 #pivotTableBearCont th:nth-child(6),
@@ -350,7 +318,6 @@ table td {
 #pivotTableBearCont td:nth-child(6),
 #pivotTableBearRev td:nth-child(6) { width: 10%; }
 
-/* Pivot Levels (col 7, takes remaining width) */
 #pivotTableBullCont th:nth-child(7),
 #pivotTableBullRev th:nth-child(7),
 #pivotTableBearCont th:nth-child(7),
@@ -360,76 +327,29 @@ table td {
 #pivotTableBearCont td:nth-child(7),
 #pivotTableBearRev td:nth-child(7) { width: auto; }
 
-/* Pivot Levels layout */
-.pivot-circles {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.circle-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 40px;  /* keeps spacing consistent */
-}
-
-/* The circle itself: only the label inside */
-.circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background-color: #444; /* grey */
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
-
-  /* ensure nothing renders outside the circle */
-  overflow: hidden;
-  padding: 0;
-  white-space: nowrap;
-  text-overflow: clip;
-}
-
-/* Price below the circle */
-.circle-price {
-  font-size: 0.65rem;
-  color: #ccc;
-  line-height: 1.1;
-  text-align: center;
-}
-
+/* ===== Pivot Levels (text layout) ===== */
 .pivot-text-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 0; /* separators handle spacing */
 }
-
 .pivot-text-block {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   line-height: 1.05;
   margin: 0 2px;
-  min-width: 44px; /* keeps columns readable; tweak if needed */
+  min-width: 44px;
 }
-
 .pivot-text-key {
   font-weight: 700;
   font-size: 0.72rem;
 }
-
 .pivot-text-price {
   font-size: 1rem;
   color: #ccc;
 }
-
 .pivot-text-sep {
   opacity: 0.9;
   padding: 0 4px;
@@ -448,13 +368,7 @@ table td {
   font-weight: 700;
 }
 
-/* existing two-line layout styles (from earlier suggestion) */
-.pivot-text-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0; }
-.pivot-text-block { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.05; margin: 0 2px; min-width: 44px; }
-.pivot-text-key { font-weight: 700; font-size: 0.72rem; }
-.pivot-text-price { font-size: 1.1rem; color: #ccc; }
-.pivot-text-sep { opacity: 0.9; padding: 0 4px; }
-
+/* CPR badge */
 .cpr-badge {
   display: inline-block;
   margin-left: 6px;
@@ -466,50 +380,27 @@ table td {
   background: transparent;
   color: #ddd;
 }
-.cpr-narrow { background: #ffd54f; color: #000; border-color: #ffd54f; }
+.cpr-narrow { background: #ffd54f; color: #000; border-color: #ffd54f; box-shadow: 0 0 8px rgba(255,213,79,0.45); }
 .cpr-wide   { background: #374151; color: #fff; border-color: #4b5563; }
 .cpr-normal { background: transparent; color: #bbb; border-color: #666; }
 
-
-.cpr-narrow {
-  background: #ffd54f;     /* gold */
-  color: #000;
-  border-color: #ffd54f;
-  box-shadow: 0 0 8px rgba(255,213,79,0.45);
-}
-
-.cpr-wide {
-  background: #374151;     /* slate */
-  color: #fff;
-  border-color: #4b5563;
-}
-
-.cpr-normal {
-  background: transparent;
-  color: #bbb;
-  border-color: #666;
-}
-
+/* Near-zero generic */
 .near-zero { font-weight: 700; }
 @keyframes flash { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
 .blink { animation: flash 0.9s ease-in-out 2; }
 
-/* Blue color for BC text */
-.bc-blue {
-  color: #1E90FF !important;  /* DodgerBlue */
-  font-weight: 700;
-}
+/* Utility color helpers (used by JS inline or classes) */
+.bc-blue, .now-blue { color: #1E90FF !important; font-weight: 700; }
+.open-yellow       { color: #FFD700 !important; font-weight: 700; }
 
-/* === Pivot grid layout (was inline in scanner.html) === */
+/* === Pivot grid layout === */
 .pivot-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-bottom: 24px;
 }
-@media (max-width: 980px) {
-  .pivot-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 980px) { .pivot-grid { grid-template-columns: 1fr; } }
 
 /* Floating toggle (upper-right) */
 .pivot-toggle-btn {
@@ -528,7 +419,7 @@ table td {
 }
 .pivot-toggle-btn:hover { background: #444; }
 
-/* Vertical card layout for ANY pivot table */
+/* Vertical card layout */
 .vertical-table thead { display: none; }
 .vertical-table tbody tr {
   display: flex;
@@ -544,69 +435,44 @@ table td {
   font-weight: 700; font-size: 1.05em; opacity: 0.95; margin-bottom: 2px;
 }
 
-/* When stacked vertically, make grid behave like a block and add spacing */
+/* When stacked vertically */
 .pivot-vertical-container.pivot-grid { display: block; }
 .pivot-vertical-container .table-container { width: 100%; margin-bottom: 12px; }
-
-/* Neutral diff style (used for -$0.30 < diff < 0) */
-.diff-neutral { opacity: 0.85; }
-
-/* When toggled, stack the four pivot tables vertically */
-.pivot-grid.stacked { grid-template-columns: 1fr !important; }
-
-/* Make the four pivot tables vertical by default when .stacked is present */
 .pivot-grid.stacked { grid-template-columns: 1fr !important; }
 
 /* Keep Bullish Continuation table visible while scrolling */
 .sticky-bc {
   position: sticky;
-  top: 56px;        /* clears the fixed toggle button */
-  z-index: 900;     /* above neighbors */
-  /* background already set on .buy-table; extra shadow helps separation while stuck */
+  top: 56px;
+  z-index: 900;
   box-shadow: 0 4px 16px rgba(0,0,0,0.35);
 }
 
-/* add in your CSS file */
+/* Quick data-zone helpers */
 td[data-zone="green"] { color: #4caf50; }
 td[data-zone="red"]   { color: #ff5252; }
 
-.ai-blink {
-  animation: aiFlash 1s ease-in-out infinite alternate;
-}
-
-@keyframes aiFlash {
-  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
-  to   { box-shadow: 0 0 20px rgba(255, 0, 0, 0.9); }
-}
-
-.ai-cell-wrap { 
-  display: flex; 
-  align-items: center; 
-  gap: 1rem;   /* 👈 space between chip and MA20 value */
-}
-.ai-sub {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-
-/* existing BUY/SELL chip classes assumed */
-.ai-blink {
-  animation: aiFlash 1s ease-in-out infinite alternate;
-}
-@keyframes aiFlash {
-  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
-  to   { box-shadow: 0 0 20px rgba(255,   69, 0, 0.9); }
-}
-
-.ai-cell-wrap { display: flex; align-items: center; gap: 1rem; }
-.ai-sub { font-size: 1rem; opacity: 0.9; }
-
+/* ===== AI flip blink (single, de-duped) ===== */
 .ai-blink { animation: aiFlash 1s ease-in-out infinite alternate; }
 @keyframes aiFlash {
   from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
   to   { box-shadow: 0 0 20px rgba(255, 69, 0, 0.9); }
 }
 
+/* ===== AI cell layout (chip + MA20 with 1rem gap) ===== */
+.ai-cell-wrap { display: flex; align-items: center; gap: 1rem; }
+.ai-sub { font-size: 1rem; opacity: 0.9; }
 
-
+/* ===== Blue range wrapper for [left | NOW | right] ===== */
+.now-range {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 2px 6px;
+  border: 1px solid #1E90FF;
+  border-radius: 6px;
+  background: rgba(30, 144, 255, 0.10);
+}
+.now-range-sep {
+  color: #1E90FF;
+  opacity: 0.9;
+}

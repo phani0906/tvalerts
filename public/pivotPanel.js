@@ -254,7 +254,7 @@
         }
         tr.appendChild(td);
 
-        // --- Pivot Levels (NOW + OPEN included, auto-updates via live price)
+        // --- Pivot Levels (NOW + OPEN included, live)
         td = document.createElement('td');
         const pl = r.pivotLevels || null;
         if (pl) {
@@ -288,23 +288,36 @@
 
           // Add OPEN & NOW to display set, then sort by price
           const display = core.slice();
-          if (isNum(openVal))  display.push({ key: 'OPEN',  val: openVal });
-          if (isNum(priceVal)) display.push({ key: 'NOW',   val: priceVal });
+          const haveOpen = isNum(openVal);
+          const haveNow  = isNum(priceVal);
+          if (haveOpen) display.push({ key: 'OPEN',  val: openVal });
+          if (haveNow)  display.push({ key: 'NOW',   val: priceVal });
 
           display.sort((a, b) => a.val - b.val);
+
+          // Helper to find display index for a core item
+          const findDispIndex = (it) =>
+            display.findIndex(d => d.key === it.key && Math.abs(d.val - it.val) < 1e-9);
+
+          const leftDisp  = (leftIdx !== -1)  ? findDispIndex(core[leftIdx])  : -1;
+          const rightDisp = (rightIdx !== -1) ? findDispIndex(core[rightIdx]) : -1;
+          const nowDisp   = haveNow ? display.findIndex(d => d.key === 'NOW') : -1;
 
           const row = document.createElement('div');
           row.className = 'pivot-text-row';
 
-          display.forEach((lvl, idx) => {
+          // We’ll render in a single pass. If we hit the first member of [left, NOW, right],
+          // we render the whole blue range box and skip to the end of that trio.
+          const trioValid = leftDisp !== -1 && rightDisp !== -1 && nowDisp !== -1;
+          const trioStart = trioValid ? Math.min(leftDisp, nowDisp, rightDisp) : -1;
+          const trioEnd   = trioValid ? Math.max(leftDisp, nowDisp, rightDisp) : -1;
+
+          function renderOne(lvl, highlightNeighbors) {
             const block = document.createElement('span');
             block.className = 'pivot-text-block';
 
             // highlight neighbors based on *core* calculation
-            const inCoreIdx = core.findIndex(c => c.key === lvl.key && c.val === lvl.val);
-            if (inCoreIdx !== -1 && (inCoreIdx === leftIdx || inCoreIdx === rightIdx)) {
-              block.classList.add('pivot-hl');
-            }
+            if (highlightNeighbors) block.classList.add('pivot-hl');
 
             const line1 = document.createElement('div');
             line1.className = 'pivot-text-key';
@@ -319,22 +332,77 @@
             if (lvl.key === 'BC') {
               line1.style.color = '#1E90FF';
               line1.style.fontWeight = '700';
-              line2.style.color = '#1E90FF'; // BC price blue
+              line2.style.color = '#1E90FF';
             }
             if (lvl.key === 'NOW') {
               line1.style.color = '#1E90FF';
               line1.style.fontWeight = '700';
-              line2.style.color = '#1E90FF'; // NOW price blue
+              line2.style.color = '#1E90FF';
             }
             if (lvl.key === 'OPEN') {
               line1.style.color = '#FFD700';
               line1.style.fontWeight = '700';
-              line2.style.color = '#FFD700'; // OPEN price yellow
+              line2.style.color = '#FFD700';
             }
 
             block.appendChild(line1);
             block.appendChild(line2);
-            row.appendChild(block);
+            return block;
+          }
+
+          for (let idx = 0; idx < display.length; idx++) {
+            // Render blue range box if this index is the first in the trio
+            if (trioValid && idx === trioStart) {
+              const box = document.createElement('span');
+              box.className = 'now-range'; // blue rectangle wrapper
+
+              // determine actual order inside the trio
+              const order = [leftDisp, nowDisp, rightDisp].sort((a, b) => a - b);
+
+              order.forEach((di, j) => {
+                const lvl = display[di];
+
+                // Should neighbor-highlight apply? Only for the two pivots (left/right)
+                const isCore = (lvl.key !== 'NOW');
+                const highlight =
+                  (isCore && (
+                    (leftIdx !== -1 && lvl.key === core[leftIdx].key && Math.abs(lvl.val - core[leftIdx].val) < 1e-9) ||
+                    (rightIdx !== -1 && lvl.key === core[rightIdx].key && Math.abs(lvl.val - core[rightIdx].val) < 1e-9)
+                  ));
+
+                box.appendChild(renderOne(lvl, highlight));
+
+                if (j < order.length - 1) {
+                  const sep = document.createElement('span');
+                  sep.className = 'pivot-text-sep now-range-sep';
+                  sep.textContent = ' | ';
+                  box.appendChild(sep);
+                }
+              });
+
+              row.appendChild(box);
+
+              // Add separator after the box if not the last element overall
+              if (trioEnd < display.length - 1) {
+                const sep = document.createElement('span');
+                sep.className = 'pivot-text-sep';
+                sep.textContent = ' | ';
+                row.appendChild(sep);
+              }
+
+              // Skip everything up to the end of the trio
+              idx = trioEnd;
+              continue;
+            }
+
+            // Normal rendering for non-trio elements
+            const lvl = display[idx];
+
+            // highlight neighbors if this is one of the two core neighbors
+            const inCoreIdx = core.findIndex(c => c.key === lvl.key && Math.abs(c.val - lvl.val) < 1e-9);
+            const highlightNeighbors = (inCoreIdx !== -1 && (inCoreIdx === leftIdx || inCoreIdx === rightIdx));
+
+            row.appendChild(renderOne(lvl, highlightNeighbors));
 
             if (idx < display.length - 1) {
               const sep = document.createElement('span');
@@ -342,7 +410,7 @@
               sep.textContent = ' | ';
               row.appendChild(sep);
             }
-          });
+          }
 
           td.appendChild(row);
 

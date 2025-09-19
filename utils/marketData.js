@@ -267,8 +267,53 @@ function safeLoad(file) {
   }
 }
 
+// Return the most recent alert for a ticker from a list
+function latestAlertFor(ticker, alerts) {
+  if (!Array.isArray(alerts) || !ticker) return null;
+  const t = String(ticker).toUpperCase();
+  let best = null;
+
+  for (const a of alerts) {
+    if (!a || String(a.Ticker).toUpperCase() !== t) continue;
+    const when = a.ts ? Date.parse(a.ts) : null; // optional ISO timestamp
+    if (!best) best = { ...a, _t: when ?? 0 };
+    else {
+      const cmp = a.ts ? Date.parse(a.ts) : null;
+      if ((cmp ?? 0) > best._t) best = { ...a, _t: cmp ?? 0 };
+    }
+  }
+  return best;
+}
+
+// Load latest AI signals for a ticker from the three alert files
+function loadLatestAISignals(dataDir, ticker) {
+  const f5  = path.join(dataDir, 'alerts_5m.json');
+  const f15 = path.join(dataDir, 'alerts_15m.json');
+  const f1h = path.join(dataDir, 'alerts_1h.json');
+
+  const a5  = safeLoad(f5);
+  const a15 = safeLoad(f15);
+  const a1h = safeLoad(f1h);
+
+  const last5  = latestAlertFor(ticker, a5);
+  const last15 = latestAlertFor(ticker, a15);
+  const last1h = latestAlertFor(ticker, a1h);
+
+  const norm = (a) => !a ? null : ({
+    alert: a.Alert || a.alert || '',   // "Buy"/"Sell"
+    zone:  a.Zone  || a.zone  || '',   // "green"/"red" (optional)
+    time:  a.Time  || a.time  || a.ts || '' // friendly or ISO time
+  });
+
+  return {
+    AI_5m:  norm(last5),
+    AI_15m: norm(last15),
+    AI_1h:  norm(last1h),
+  };
+}
+
 // -------------------- dual-cadence updater --------------------
-const currentData = {}; // { [TICKER]: { Price, DayMid, MA..., VWAP..., TouchMid, TouchPDH } }
+const currentData = {}; // { [TICKER]: { Price, DayMid, MA..., VWAP..., TouchMid, TouchPDH, AI_* } }
 
 function assignIfNum(obj, key, val) { if (isNum(val)) obj[key] = val; }
 
@@ -290,6 +335,11 @@ function mergeTicker(t, patch) {
   // Booleans copy through as-is
   if ('TouchMid'  in patch) next.TouchMid  = !!patch.TouchMid;
   if ('TouchPDH'  in patch) next.TouchPDH  = !!patch.TouchPDH;
+
+  // AI signals (objects copied as-is; last non-null wins)
+  if ('AI_5m'  in patch && patch.AI_5m)  next.AI_5m  = patch.AI_5m;
+  if ('AI_15m' in patch && patch.AI_15m) next.AI_15m = patch.AI_15m;
+  if ('AI_1h'  in patch && patch.AI_1h)  next.AI_1h  = patch.AI_1h;
 
   currentData[t] = next;
 }
@@ -313,7 +363,9 @@ async function runPricePass(io, dataDir) {
   for (const t of tickers) {
     // eslint-disable-next-line no-await-in-loop
     const Price = await fetchPriceOnly(t);
-    mergeTicker(t, { Price });
+    // include latest AI signals even on the fast pass (keeps UI snappy)
+    const ai = loadLatestAISignals(dataDir, t);
+    mergeTicker(t, { Price, ...ai });
   }
 
   io.emit('priceUpdate', { ...currentData }); // full snapshot
@@ -351,6 +403,9 @@ async function runMetricsPass(io, dataDir) {
       regEndSec:    series5.regEndSec
     });
 
+    // latest AI signals (slow pass also refreshes)
+    const ai = loadLatestAISignals(dataDir, t);
+
     mergeTicker(t, {
       DayMid: dayMid,
       MA20_5m:  isNum(ma5)  ? Number(ma5.toFixed(2))  : ma5,
@@ -361,6 +416,11 @@ async function runMetricsPass(io, dataDir) {
       VWAP_1h:  isNum(vwh)  ? Number(vwh.toFixed(2))  : vwh,
       TouchMid:  touchedMid,
       TouchPDH:  touchedPDH,
+
+      // AI fields
+      AI_5m:  ai.AI_5m,
+      AI_15m: ai.AI_15m,
+      AI_1h:  ai.AI_1h,
     });
   }
 

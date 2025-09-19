@@ -566,3 +566,8 @@ table td {
   box-shadow: 0 4px 16px rgba(0,0,0,0.35);
 }
 
+/* add in your CSS file */
+td[data-zone="green"] { color: #4caf50; }
+td[data-zone="red"]   { color: #ff5252; }
+
+

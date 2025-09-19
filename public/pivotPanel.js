@@ -1,19 +1,20 @@
 /* global io */
 (function () {
   // Shared caches (even if scanner.js hasn't run yet)
-  window.AI_5M = window.AI_5M || new Map();
-  window.MA20_5M = window.MA20_5M || new Map();
+  window.AI_5M     = window.AI_5M     || new Map();
+  window.MA20_5M   = window.MA20_5M   || new Map();
+  window.PRICE_LIVE= window.PRICE_LIVE|| new Map(); // 👈 live prices for 5s updates
 
   const socket = io();
 
   const TREND = {
     BULL_CONT: 'Bullish Continuation',
     BEAR_CONT: 'Bearish Continuation',
-    BULL_REV: 'Bullish Trend Reversal',
-    BEAR_REV: 'Bearish Trend Reversal'
+    BULL_REV:  'Bullish Trend Reversal',
+    BEAR_REV:  'Bearish Trend Reversal'
   };
 
-  // Remember last AI signal + change time for 5m blink
+  // last AI signal + change time for 5m blink
   const AI_LAST = new Map(); // ticker -> { signal, changedAt }
 
   // ===== Tolerance (from server) =====
@@ -42,7 +43,7 @@
   // ===== utils =====
   function fmt2(v) { if (v == null || v === '') return ''; const n = Number(v); return Number.isNaN(n) ? '' : n.toFixed(2); }
   const isNum = v => v != null && isFinite(Number(v));
-  const num = v => Number(v);
+  const num   = v => Number(v);
 
   function applyNearZeroBlink(el, diff, tol) {
     el.classList.remove('near-zero', 'blink');
@@ -58,20 +59,18 @@
     return s;
   }
 
-  // ===== AI 5m normalization & access =====
+  // ===== AI 5m helpers =====
   function normalizeAIStr(v) {
     if (!v) return '';
     const s = (typeof v === 'string') ? v : (v.alert || v.signal || v.side || '');
     const up = String(s).toUpperCase();
     if (up.includes('SELL') || up.includes('RED') || up.includes('SHORT')) return 'SELL';
-    if (up.includes('BUY') || up.includes('GREEN') || up.includes('LONG')) return 'BUY';
+    if (up.includes('BUY')  || up.includes('GREEN')|| up.includes('LONG'))  return 'BUY';
     return '';
   }
   function getAISignal(ticker) {
-    const map = window.AI_5M;
-    if (!map || typeof map.get !== 'function') return '';
     const key = String(ticker || '').toUpperCase();
-    return normalizeAIStr(map.get(key));
+    return normalizeAIStr(window.AI_5M.get(key));
   }
 
   // ===== 5m MA20 access =====
@@ -82,6 +81,16 @@
   function getMA20_5m(ticker) {
     const v = window.MA20_5M.get(String(ticker).toUpperCase());
     return isNum(v) ? Number(v) : null;
+  }
+
+  // ===== Live price cache (5s)
+  function setLivePrice(ticker, val) {
+    if (!isNum(val)) return;
+    window.PRICE_LIVE.set(String(ticker).toUpperCase(), Number(val));
+  }
+  function getLivePrice(ticker, fallback) {
+    const v = window.PRICE_LIVE.get(String(ticker).toUpperCase());
+    return isNum(v) ? v : (isNum(fallback) ? Number(fallback) : null);
   }
 
   // ===== table painter =====
@@ -97,15 +106,15 @@
 
       for (const r of list) {
         const ticker = r.ticker ?? r.Ticker ?? '';
-        const flags = TOUCH.get(ticker) || { mid: false, pdh: false };
+        const flags  = TOUCH.get(ticker) || { mid: false, pdh: false };
 
         const relText =
           r.relationshipLabel ??
           r.pivotRelationship ??
           r.relationship ?? '';
 
-        const midRaw = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-        const openRaw = r.openPrice ?? r.open ?? r.Open;
+        const midRaw   = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
+        const openRaw  = r.openPrice ?? r.open ?? r.Open;
         const priceRaw = r.currentPrice ?? r.price ?? r.Price;
 
         const tr = document.createElement('tr');
@@ -125,8 +134,6 @@
           'Inner Value': 'IV',
           'Outside Value': 'OV',
           'No change': 'NC',
-          'No Change': 'NC',
-          'Nochange': 'NC'
         };
         const shortRel = relMap[relText] || (relText || '');
         td.textContent = shortRel;
@@ -138,8 +145,8 @@
         const w = r.cprWidth, rk = r.cprRank, pct = r.cprPercentile;
         if (w != null) {
           const pctTxt = (pct != null) ? ` • pct ${(pct * 100).toFixed(0)}%` : '';
-          const rkTxt = (rk != null) ? ` • rank ${rk}/10` : '';
-          badge.title = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
+          const rkTxt  = (rk != null) ? ` • rank ${rk}/10` : '';
+          badge.title  = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
         }
         td.appendChild(document.createTextNode(' '));
         td.appendChild(badge);
@@ -154,11 +161,12 @@
 
         // --- Open / Price
         td = document.createElement('td');
-        const openVal = isNum(openRaw) ? num(openRaw) : null;
-        const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
+        const openVal  = isNum(openRaw)  ? num(openRaw)  : null;
+        const priceValRow = isNum(priceRaw) ? num(priceRaw) : null;
+        const priceVal = getLivePrice(ticker, priceValRow); // 👈 prefer live price
 
         if (openVal != null || priceVal != null) {
-          const openSpan = document.createElement('span');
+          const openSpan  = document.createElement('span');
           const priceSpan = document.createElement('span');
 
           if (openVal != null) openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
@@ -185,16 +193,16 @@
           const span = document.createElement('span');
           span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
-          if (diff < -0.30) span.className = 'diff-down';
-          else if (diff >= 0) span.className = 'diff-up';
-          else span.className = 'diff-neutral';
+          if (diff < -0.30)      span.className = 'diff-down';
+          else if (diff >= 0)    span.className = 'diff-up';
+          else                   span.className = 'diff-neutral';
 
           td.appendChild(span);
           applyNearZeroBlink(td, diff, TOL.pivot_mid);
         }
         tr.appendChild(td);
 
-        // --- AI 5 min (chip + MA20(5m) value in the SAME cell)
+        // --- AI 5 min (chip + MA20(5m) beside it, 1rem gap)
         td = document.createElement('td');
         const ai = getAISignal(ticker);
         const aiWrap = document.createElement('div');
@@ -204,8 +212,6 @@
           const chip = document.createElement('span');
           chip.textContent = ai;
           chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
-
-          // Blink chip if the signal flipped in the last 5 minutes
           const rec = AI_LAST.get(ticker.toUpperCase());
           if (rec && rec.signal === ai && Date.now() - rec.changedAt <= 300000) {
             chip.classList.add('ai-blink');
@@ -213,18 +219,15 @@
           aiWrap.appendChild(chip);
         }
 
-        // ⤵ MA20 (5m) number + % diff lives beside the chip
         const ma5m = getMA20_5m(ticker);
         if (isNum(ma5m)) {
           const sub = document.createElement('span');
           sub.className = 'ai-sub';
           if (isNum(priceVal) && ma5m !== 0) {
             const diff = priceVal - ma5m;
-            const pct = (diff / ma5m) * 100;
+            const pct  = (diff / ma5m) * 100;
             sub.textContent = `${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
             sub.classList.add(diff >= 0 ? 'diff-up' : 'diff-down');
-
-            // near-zero blink on the cell if price ≈ MA20
             applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
             sub.textContent = fmt2(ma5m);
@@ -232,9 +235,6 @@
           aiWrap.appendChild(sub);
         }
 
-
-
-        // If nothing to show, leave blank; otherwise append wrap
         if (aiWrap.children.length > 0) td.appendChild(aiWrap);
         tr.appendChild(td);
 
@@ -243,7 +243,7 @@
         const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
         if (maVal != null) {
           if (priceVal != null && maVal !== 0) {
-            const pct = ((priceVal - maVal) / maVal) * 100;
+            const pct  = ((priceVal - maVal) / maVal) * 100;
             const span = document.createElement('span');
             span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
             span.className = pct >= 0 ? 'diff-up' : 'diff-down';
@@ -254,49 +254,67 @@
         }
         tr.appendChild(td);
 
-        // --- Pivot Levels (sorted, BC blue & neighbors highlighted)
+        // --- Pivot Levels (NOW + OPEN included, auto-updates via live price)
         td = document.createElement('td');
         const pl = r.pivotLevels || null;
         if (pl) {
-          let levels = [
+          // Core pivot levels for neighbor-highlighting (exclude OPEN/NOW)
+          let core = [
             { key: 'R5', val: pl.R5 },
             { key: 'R4', val: pl.R4 },
             { key: 'R3', val: pl.R3 },
-            { key: 'H', val: pl.prevHigh },
+            { key: 'H',  val: pl.prevHigh },
             { key: 'TC', val: pl.TC },
-            { key: 'P', val: pl.P },
+            { key: 'P',  val: pl.P },
             { key: 'BC', val: pl.BC },
-            { key: 'L', val: pl.prevLow },
+            { key: 'L',  val: pl.prevLow },
             { key: 'S3', val: pl.S3 },
             { key: 'S4', val: pl.S4 },
             { key: 'S5', val: pl.S5 },
           ].filter(l => isNum(l.val));
 
-          levels.sort((a, b) => a.val - b.val);
+          core.sort((a, b) => a.val - b.val);
 
+          // Determine neighbors around the current price (live)
           let leftIdx = -1, rightIdx = -1;
-          if (isNum(priceVal) && levels.length > 0) {
-            for (let i = 0; i < levels.length - 1; i++) {
-              const a = levels[i].val, b = levels[i + 1].val;
+          if (isNum(priceVal) && core.length > 0) {
+            for (let i = 0; i < core.length - 1; i++) {
+              const a = core[i].val, b = core[i + 1].val;
               if (priceVal >= a && priceVal <= b) { leftIdx = i; rightIdx = i + 1; break; }
             }
-            if (leftIdx === -1 && priceVal < levels[0].val && levels.length >= 2) { leftIdx = 0; rightIdx = 1; }
-            if (leftIdx === -1 && priceVal > levels[levels.length - 1].val && levels.length >= 2) { leftIdx = levels.length - 2; rightIdx = levels.length - 1; }
+            if (leftIdx === -1 && priceVal < core[0].val && core.length >= 2) { leftIdx = 0; rightIdx = 1; }
+            if (leftIdx === -1 && priceVal > core[core.length - 1].val && core.length >= 2) { leftIdx = core.length - 2; rightIdx = core.length - 1; }
           }
+
+          // Add OPEN & NOW to display set, then sort by price
+          const display = core.slice();
+          if (isNum(openVal))  display.push({ key: 'OPEN',  val: openVal });
+          if (isNum(priceVal)) display.push({ key: 'NOW',   val: priceVal });
+
+          display.sort((a, b) => a.val - b.val);
 
           const row = document.createElement('div');
           row.className = 'pivot-text-row';
 
-          levels.forEach((lvl, idx) => {
+          display.forEach((lvl, idx) => {
             const block = document.createElement('span');
             block.className = 'pivot-text-block';
-            if (idx === leftIdx || idx === rightIdx) block.classList.add('pivot-hl');
+
+            // highlight neighbors based on core calculation
+            const inCoreIdx = core.findIndex(c => c.key === lvl.key && c.val === lvl.val);
+            if (inCoreIdx !== -1 && (inCoreIdx === leftIdx || inCoreIdx === rightIdx)) {
+              block.classList.add('pivot-hl');
+            }
 
             const line1 = document.createElement('div');
             line1.className = 'pivot-text-key';
             const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
             line1.textContent = keyLabel;
-            if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
+
+            // colors: BC blue (existing), OPEN yellow, NOW blue
+            if (lvl.key === 'BC')  { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
+            if (lvl.key === 'OPEN'){ line1.style.color = '#FFD700'; line1.style.fontWeight = '700'; }
+            if (lvl.key === 'NOW') { line1.style.color = '#00BFFF'; line1.style.fontWeight = '700'; }
 
             const line2 = document.createElement('div');
             line2.className = 'pivot-text-price';
@@ -306,7 +324,7 @@
             block.appendChild(line2);
             row.appendChild(block);
 
-            if (idx < levels.length - 1) {
+            if (idx < display.length - 1) {
               const sep = document.createElement('span');
               sep.className = 'pivot-text-sep';
               sep.textContent = ' | ';
@@ -317,7 +335,7 @@
           td.appendChild(row);
 
           if (leftIdx !== -1 && rightIdx !== -1) {
-            const openPriceTd = tr.children[2];
+            const openPriceTd = tr.children[2]; // Open/Price column
             const priceSpan = openPriceTd && openPriceTd.querySelector('span:last-child');
             if (priceSpan) priceSpan.classList.add('pivot-hl-price');
           }
@@ -338,8 +356,8 @@
     return {
       bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
       bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-      bullRev: list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-      bearRev: list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
+      bullRev:  list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
+      bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
     };
   }
   function paint(rows) {
@@ -355,8 +373,8 @@
 
     renderPivotGroup('pivotTableBullCont', bullCont);
     renderPivotGroup('pivotTableBearCont', bearCont);
-    renderPivotGroup('pivotTableBullRev', bullRev);
-    renderPivotGroup('pivotTableBearRev', bearRev);
+    renderPivotGroup('pivotTableBullRev',  bullRev);
+    renderPivotGroup('pivotTableBearRev',  bearRev);
   }
 
   // ===== initial boot =====
@@ -392,25 +410,29 @@
         pdh: !!data.TouchPDH
       });
 
-      // AI 5m with change detection (blink 5 min on flip)
+      // Live price for 5s refresh
+      if (isNum(data?.Price)) {
+        setLivePrice(t, Number(data.Price));
+      }
+
+      // AI 5m (flip blink)
       if (data && 'AI_5m' in data) {
         const aiStr = normalizeAIStr(data.AI_5m);
         const key = String(t).toUpperCase();
-
         const prev = AI_LAST.get(key);
         if (!prev || prev.signal !== aiStr) {
           AI_LAST.set(key, { signal: aiStr, changedAt: Date.now() });
         }
-
         if (aiStr) window.AI_5M.set(key, aiStr);
       }
 
-      // MA20 (5m) cache
+      // MA20 (5m)
       if (isNum(data?.MA20_5m)) {
         setMA20_5m(t, Number(data.MA20_5m));
       }
     }
 
+    // Repaint tables using fresh prices (≈ every 5s)
     repaintIfPossible();
   });
 })();

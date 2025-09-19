@@ -1,9 +1,9 @@
 /* global io */
 (function () {
   // Shared caches (even if scanner.js hasn't run yet)
-  window.AI_5M     = window.AI_5M     || new Map();
-  window.MA20_5M   = window.MA20_5M   || new Map();
-  window.PRICE_LIVE= window.PRICE_LIVE|| new Map(); // 👈 live prices for 5s updates
+  window.AI_5M      = window.AI_5M      || new Map();
+  window.MA20_5M    = window.MA20_5M    || new Map();
+  window.PRICE_LIVE = window.PRICE_LIVE || new Map(); // live prices for 5s updates
 
   const socket = io();
 
@@ -14,7 +14,7 @@
     BEAR_REV:  'Bearish Trend Reversal'
   };
 
-  // last AI signal + change time for 5m blink
+  // Remember last AI signal + change time for 5m blink
   const AI_LAST = new Map(); // ticker -> { signal, changedAt }
 
   // ===== Tolerance (from server) =====
@@ -163,7 +163,7 @@
         td = document.createElement('td');
         const openVal  = isNum(openRaw)  ? num(openRaw)  : null;
         const priceValRow = isNum(priceRaw) ? num(priceRaw) : null;
-        const priceVal = getLivePrice(ticker, priceValRow); // 👈 prefer live price
+        const priceVal = getLivePrice(ticker, priceValRow); // prefer live price
 
         if (openVal != null || priceVal != null) {
           const openSpan  = document.createElement('span');
@@ -300,7 +300,7 @@
             const block = document.createElement('span');
             block.className = 'pivot-text-block';
 
-            // highlight neighbors based on core calculation
+            // highlight neighbors based on *core* calculation
             const inCoreIdx = core.findIndex(c => c.key === lvl.key && c.val === lvl.val);
             if (inCoreIdx !== -1 && (inCoreIdx === leftIdx || inCoreIdx === rightIdx)) {
               block.classList.add('pivot-hl');
@@ -311,14 +311,26 @@
             const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
             line1.textContent = keyLabel;
 
-            // colors: BC blue (existing), OPEN yellow, NOW blue
-            if (lvl.key === 'BC')  { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
-            if (lvl.key === 'OPEN'){ line1.style.color = '#FFD700'; line1.style.fontWeight = '700'; }
-            if (lvl.key === 'NOW') { line1.style.color = '#00BFFF'; line1.style.fontWeight = '700'; }
-
             const line2 = document.createElement('div');
             line2.className = 'pivot-text-price';
             line2.textContent = fmt2(lvl.val);
+
+            // Colors: BC + NOW both blue, OPEN yellow (key and price)
+            if (lvl.key === 'BC') {
+              line1.style.color = '#1E90FF';
+              line1.style.fontWeight = '700';
+              line2.style.color = '#1E90FF'; // BC price blue
+            }
+            if (lvl.key === 'NOW') {
+              line1.style.color = '#1E90FF';
+              line1.style.fontWeight = '700';
+              line2.style.color = '#1E90FF'; // NOW price blue
+            }
+            if (lvl.key === 'OPEN') {
+              line1.style.color = '#FFD700';
+              line1.style.fontWeight = '700';
+              line2.style.color = '#FFD700'; // OPEN price yellow
+            }
 
             block.appendChild(line1);
             block.appendChild(line2);

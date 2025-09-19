@@ -1,6 +1,6 @@
 /* global io */
 (function () {
-  // Ensure shared maps exist even if scanner.js hasn't run yet
+  // Shared caches (even if scanner.js hasn't run yet)
   window.AI_5M   = window.AI_5M   || new Map();
   window.MA20_5M = window.MA20_5M || new Map();
 
@@ -13,7 +13,7 @@
     BEAR_REV:  'Bearish Trend Reversal'
   };
 
-  // Remember last AI signal + change time for blink effect
+  // Remember last AI signal + change time for 5m blink
   const AI_LAST = new Map(); // ticker -> { signal, changedAt }
 
   // ===== Tolerance (from server) =====
@@ -44,10 +44,10 @@
   const isNum = v => v != null && isFinite(Number(v));
   const num   = v => Number(v);
 
-  function applyNearZeroBlink(td, diff, tol) {
-    td.classList.remove('near-zero', 'blink');
+  function applyNearZeroBlink(el, diff, tol) {
+    el.classList.remove('near-zero', 'blink');
     if (!isNum(diff) || !isNum(tol)) return;
-    if (Math.abs(diff) <= Number(tol)) td.classList.add('near-zero', 'blink');
+    if (Math.abs(diff) <= Number(tol)) el.classList.add('near-zero', 'blink');
   }
 
   function greenTick() {
@@ -194,47 +194,46 @@
         }
         tr.appendChild(td);
 
-        // --- AI 5 min (with blink on change)
+        // --- AI 5 min (chip + MA20(5m) value in the SAME cell)
         td = document.createElement('td');
         const ai = getAISignal(ticker);
+        const aiWrap = document.createElement('div');
+        aiWrap.className = 'ai-cell-wrap';
+
         if (ai) {
           const chip = document.createElement('span');
           chip.textContent = ai;
           chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
 
-          // Blink if the signal just flipped in the last 5 minutes
+          // Blink chip if the signal flipped in the last 5 minutes
           const rec = AI_LAST.get(ticker.toUpperCase());
           if (rec && rec.signal === ai && Date.now() - rec.changedAt <= 300000) {
             chip.classList.add('ai-blink');
           }
-
-          td.appendChild(chip);
-        } else {
-          td.textContent = '';
+          aiWrap.appendChild(chip);
         }
-        tr.appendChild(td);
 
-        // --- MA20 (5m) with % diff to price + optional near-zero blink
-        td = document.createElement('td');
+        // ⤵ MA20 (5m) number + % diff lives under/next to the chip
         const ma5m = getMA20_5m(ticker);
         if (isNum(ma5m)) {
+          const sub = document.createElement('div');
+          sub.className = 'ai-sub';
           if (isNum(priceVal) && ma5m !== 0) {
             const diff = priceVal - ma5m;
             const pct  = (diff / ma5m) * 100;
+            sub.textContent = `MA20: ${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+            sub.classList.add(diff >= 0 ? 'diff-up' : 'diff-down');
 
-            const span = document.createElement('span');
-            span.textContent = `${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
-            span.className = diff >= 0 ? 'diff-up' : 'diff-down';
-            td.appendChild(span);
-
-            // Blink near MA20 if desired (same tolerance used for Mid-point)
+            // near-zero blink on the whole cell if price ≈ MA20(5m)
             applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
-            td.textContent = fmt2(ma5m);
+            sub.textContent = `MA20: ${fmt2(ma5m)}`;
           }
-        } else {
-          td.textContent = '';
+          aiWrap.appendChild(sub);
         }
+
+        // If nothing to show, leave blank; otherwise append wrap
+        if (aiWrap.children.length > 0) td.appendChild(aiWrap);
         tr.appendChild(td);
 
         // --- Daily MA20 (with % diff)
@@ -391,7 +390,7 @@
         pdh: !!data.TouchPDH
       });
 
-      // AI 5m with change detection (blink for 5 minutes on flip)
+      // AI 5m with change detection (blink 5 min on flip)
       if (data && 'AI_5m' in data) {
         const aiStr = normalizeAIStr(data.AI_5m);
         const key = String(t).toUpperCase();
@@ -404,7 +403,7 @@
         if (aiStr) window.AI_5M.set(key, aiStr);
       }
 
-      // MA20 (5m)
+      // MA20 (5m) cache
       if (isNum(data?.MA20_5m)) {
         setMA20_5m(t, Number(data.MA20_5m));
       }

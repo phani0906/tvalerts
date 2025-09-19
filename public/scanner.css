@@ -578,3 +578,16 @@ td[data-zone="red"]   { color: #ff5252; }
   from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
   to   { box-shadow: 0 0 20px rgba(255, 0, 0, 0.9); }
 }
+
+.ai-cell-wrap { display: flex; align-items: center; gap: 8px; }
+.ai-sub { font-size: 12px; opacity: 0.9; }
+
+/* existing BUY/SELL chip classes assumed */
+.ai-blink {
+  animation: aiFlash 1s ease-in-out infinite alternate;
+}
+@keyframes aiFlash {
+  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
+  to   { box-shadow: 0 0 20px rgba(255,   69, 0, 0.9); }
+}
+

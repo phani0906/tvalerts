@@ -1,7 +1,7 @@
 /* global io */
 (function () {
   // Shared caches (even if scanner.js hasn't run yet)
-  window.AI_5M   = window.AI_5M   || new Map();
+  window.AI_5M = window.AI_5M || new Map();
   window.MA20_5M = window.MA20_5M || new Map();
 
   const socket = io();
@@ -9,8 +9,8 @@
   const TREND = {
     BULL_CONT: 'Bullish Continuation',
     BEAR_CONT: 'Bearish Continuation',
-    BULL_REV:  'Bullish Trend Reversal',
-    BEAR_REV:  'Bearish Trend Reversal'
+    BULL_REV: 'Bullish Trend Reversal',
+    BEAR_REV: 'Bearish Trend Reversal'
   };
 
   // Remember last AI signal + change time for 5m blink
@@ -42,7 +42,7 @@
   // ===== utils =====
   function fmt2(v) { if (v == null || v === '') return ''; const n = Number(v); return Number.isNaN(n) ? '' : n.toFixed(2); }
   const isNum = v => v != null && isFinite(Number(v));
-  const num   = v => Number(v);
+  const num = v => Number(v);
 
   function applyNearZeroBlink(el, diff, tol) {
     el.classList.remove('near-zero', 'blink');
@@ -64,7 +64,7 @@
     const s = (typeof v === 'string') ? v : (v.alert || v.signal || v.side || '');
     const up = String(s).toUpperCase();
     if (up.includes('SELL') || up.includes('RED') || up.includes('SHORT')) return 'SELL';
-    if (up.includes('BUY')  || up.includes('GREEN')|| up.includes('LONG'))  return 'BUY';
+    if (up.includes('BUY') || up.includes('GREEN') || up.includes('LONG')) return 'BUY';
     return '';
   }
   function getAISignal(ticker) {
@@ -97,15 +97,15 @@
 
       for (const r of list) {
         const ticker = r.ticker ?? r.Ticker ?? '';
-        const flags  = TOUCH.get(ticker) || { mid: false, pdh: false };
+        const flags = TOUCH.get(ticker) || { mid: false, pdh: false };
 
         const relText =
           r.relationshipLabel ??
           r.pivotRelationship ??
           r.relationship ?? '';
 
-        const midRaw   = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-        const openRaw  = r.openPrice ?? r.open ?? r.Open;
+        const midRaw = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
+        const openRaw = r.openPrice ?? r.open ?? r.Open;
         const priceRaw = r.currentPrice ?? r.price ?? r.Price;
 
         const tr = document.createElement('tr');
@@ -138,8 +138,8 @@
         const w = r.cprWidth, rk = r.cprRank, pct = r.cprPercentile;
         if (w != null) {
           const pctTxt = (pct != null) ? ` • pct ${(pct * 100).toFixed(0)}%` : '';
-          const rkTxt  = (rk != null) ? ` • rank ${rk}/10` : '';
-          badge.title  = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
+          const rkTxt = (rk != null) ? ` • rank ${rk}/10` : '';
+          badge.title = `CPR width ${Number(w).toFixed(2)}${rkTxt}${pctTxt}`;
         }
         td.appendChild(document.createTextNode(' '));
         td.appendChild(badge);
@@ -154,11 +154,11 @@
 
         // --- Open / Price
         td = document.createElement('td');
-        const openVal  = isNum(openRaw)  ? num(openRaw)  : null;
+        const openVal = isNum(openRaw) ? num(openRaw) : null;
         const priceVal = isNum(priceRaw) ? num(priceRaw) : null;
 
         if (openVal != null || priceVal != null) {
-          const openSpan  = document.createElement('span');
+          const openSpan = document.createElement('span');
           const priceSpan = document.createElement('span');
 
           if (openVal != null) openSpan.textContent = fmt2(openVal) + (priceVal != null ? ' / ' : '');
@@ -185,9 +185,9 @@
           const span = document.createElement('span');
           span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
-          if (diff < -0.30)      span.className = 'diff-down';
-          else if (diff >= 0)    span.className = 'diff-up';
-          else                   span.className = 'diff-neutral';
+          if (diff < -0.30) span.className = 'diff-down';
+          else if (diff >= 0) span.className = 'diff-up';
+          else span.className = 'diff-neutral';
 
           td.appendChild(span);
           applyNearZeroBlink(td, diff, TOL.pivot_mid);
@@ -220,17 +220,18 @@
           sub.className = 'ai-sub';
           if (isNum(priceVal) && ma5m !== 0) {
             const diff = priceVal - ma5m;
-            const pct  = (diff / ma5m) * 100;
+            const pct = (diff / ma5m) * 100;
             sub.textContent = `MA20: ${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
             sub.classList.add(diff >= 0 ? 'diff-up' : 'diff-down');
 
-            // near-zero blink on the whole cell if price ≈ MA20(5m)
+            // near-zero blink
             applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
             sub.textContent = `MA20: ${fmt2(ma5m)}`;
           }
           aiWrap.appendChild(sub);
         }
+
 
         // If nothing to show, leave blank; otherwise append wrap
         if (aiWrap.children.length > 0) td.appendChild(aiWrap);
@@ -241,7 +242,7 @@
         const maVal = isNum(r.ma20Daily) ? num(r.ma20Daily) : null;
         if (maVal != null) {
           if (priceVal != null && maVal !== 0) {
-            const pct  = ((priceVal - maVal) / maVal) * 100;
+            const pct = ((priceVal - maVal) / maVal) * 100;
             const span = document.createElement('span');
             span.textContent = `${fmt2(maVal)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
             span.className = pct >= 0 ? 'diff-up' : 'diff-down';
@@ -260,11 +261,11 @@
             { key: 'R5', val: pl.R5 },
             { key: 'R4', val: pl.R4 },
             { key: 'R3', val: pl.R3 },
-            { key: 'H',  val: pl.prevHigh },
+            { key: 'H', val: pl.prevHigh },
             { key: 'TC', val: pl.TC },
-            { key: 'P',  val: pl.P },
+            { key: 'P', val: pl.P },
             { key: 'BC', val: pl.BC },
-            { key: 'L',  val: pl.prevLow },
+            { key: 'L', val: pl.prevLow },
             { key: 'S3', val: pl.S3 },
             { key: 'S4', val: pl.S4 },
             { key: 'S5', val: pl.S5 },
@@ -336,8 +337,8 @@
     return {
       bullCont: list.filter(r => lc(r.trend) === lc(TREND.BULL_CONT)),
       bearCont: list.filter(r => lc(r.trend) === lc(TREND.BEAR_CONT)),
-      bullRev:  list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
-      bearRev:  list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
+      bullRev: list.filter(r => lc(r.trend) === lc(TREND.BULL_REV)),
+      bearRev: list.filter(r => lc(r.trend) === lc(TREND.BEAR_REV)),
     };
   }
   function paint(rows) {
@@ -353,8 +354,8 @@
 
     renderPivotGroup('pivotTableBullCont', bullCont);
     renderPivotGroup('pivotTableBearCont', bearCont);
-    renderPivotGroup('pivotTableBullRev',  bullRev);
-    renderPivotGroup('pivotTableBearRev',  bearRev);
+    renderPivotGroup('pivotTableBullRev', bullRev);
+    renderPivotGroup('pivotTableBearRev', bearRev);
   }
 
   // ===== initial boot =====

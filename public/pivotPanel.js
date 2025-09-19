@@ -213,24 +213,25 @@
           aiWrap.appendChild(chip);
         }
 
-        // ⤵ MA20 (5m) number + % diff lives under/next to the chip
+        // ⤵ MA20 (5m) number + % diff lives beside the chip
         const ma5m = getMA20_5m(ticker);
         if (isNum(ma5m)) {
-          const sub = document.createElement('div');
+          const sub = document.createElement('span');
           sub.className = 'ai-sub';
           if (isNum(priceVal) && ma5m !== 0) {
             const diff = priceVal - ma5m;
             const pct = (diff / ma5m) * 100;
-            sub.textContent = `MA20: ${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+            sub.textContent = `${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
             sub.classList.add(diff >= 0 ? 'diff-up' : 'diff-down');
 
-            // near-zero blink
+            // near-zero blink on the cell if price ≈ MA20
             applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
-            sub.textContent = `MA20: ${fmt2(ma5m)}`;
+            sub.textContent = fmt2(ma5m);
           }
           aiWrap.appendChild(sub);
         }
+
 
 
         // If nothing to show, leave blank; otherwise append wrap

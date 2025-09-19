@@ -579,8 +579,16 @@ td[data-zone="red"]   { color: #ff5252; }
   to   { box-shadow: 0 0 20px rgba(255, 0, 0, 0.9); }
 }
 
-.ai-cell-wrap { display: flex; align-items: center; gap: 8px; }
-.ai-sub { font-size: 12px; opacity: 0.9; }
+.ai-cell-wrap { 
+  display: flex; 
+  align-items: center; 
+  gap: 1rem;   /* 👈 space between chip and MA20 value */
+}
+.ai-sub {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
 
 /* existing BUY/SELL chip classes assumed */
 .ai-blink {

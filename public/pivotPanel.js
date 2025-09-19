@@ -1,7 +1,8 @@
 /* global io */
 (function () {
-  // Ensure AI map exists even if scanner.js hasn't run yet
-  window.AI_5M = window.AI_5M || new Map();
+  // Ensure shared maps exist even if scanner.js hasn't run yet
+  window.AI_5M   = window.AI_5M   || new Map();
+  window.MA20_5M = window.MA20_5M || new Map();
 
   const socket = io();
 
@@ -63,13 +64,21 @@
     if (up.includes('BUY')  || up.includes('GREEN')|| up.includes('LONG'))  return 'BUY';
     return '';
   }
-
-  // read from the shared map (kept for compatibility with scanner.js)
   function getAISignal(ticker) {
     const map = window.AI_5M;
     if (!map || typeof map.get !== 'function') return '';
     const key = String(ticker || '').toUpperCase();
     return normalizeAIStr(map.get(key));
+  }
+
+  // ===== 5m MA20 access =====
+  function setMA20_5m(ticker, val) {
+    if (!isNum(val)) return;
+    window.MA20_5M.set(String(ticker).toUpperCase(), Number(val));
+  }
+  function getMA20_5m(ticker) {
+    const v = window.MA20_5M.get(String(ticker).toUpperCase());
+    return isNum(v) ? Number(v) : null;
   }
 
   // ===== table painter =====
@@ -93,7 +102,6 @@
           r.relationship ?? '';
 
         const midRaw   = r.midpoint ?? r.midPoint ?? r.mid ?? r.cprMid ?? r.pivotMid ?? r.Mid ?? r.MID;
-        /* const pdhRaw = r.pdh;  // (commented) no PDH column for now */
         const openRaw  = r.openPrice ?? r.open ?? r.Open;
         const priceRaw = r.currentPrice ?? r.price ?? r.Price;
 
@@ -174,7 +182,6 @@
           const span = document.createElement('span');
           span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
-          // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
           if (diff < -0.30)      span.className = 'diff-down';
           else if (diff >= 0)    span.className = 'diff-up';
           else                   span.className = 'diff-neutral';
@@ -192,6 +199,24 @@
           chip.textContent = ai;
           chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
           td.appendChild(chip);
+        } else {
+          td.textContent = '';
+        }
+        tr.appendChild(td);
+
+        // --- MA20 (5m) with % diff to price
+        td = document.createElement('td');
+        const ma5m = getMA20_5m(ticker);
+        if (isNum(ma5m)) {
+          if (isNum(priceVal) && ma5m !== 0) {
+            const pct = ((priceVal - ma5m) / ma5m) * 100;
+            const span = document.createElement('span');
+            span.textContent = `${fmt2(ma5m)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+            span.className = pct >= 0 ? 'diff-up' : 'diff-down';
+            td.appendChild(span);
+          } else {
+            td.textContent = fmt2(ma5m);
+          }
         } else {
           td.textContent = '';
         }
@@ -253,7 +278,6 @@
 
             const line1 = document.createElement('div');
             line1.className = 'pivot-text-key';
-            // Rename H→PDH and L→PDL in UI
             const keyLabel = (lvl.key === 'H') ? 'PDH' : (lvl.key === 'L') ? 'PDL' : lvl.key;
             line1.textContent = keyLabel;
             if (lvl.key === 'BC') { line1.style.color = '#1E90FF'; line1.style.fontWeight = '700'; }
@@ -352,13 +376,15 @@
         pdh: !!data.TouchPDH
       });
 
-      // 🔽 NEW: capture AI 5m from backend snapshot and store in the shared map
+      // AI 5m
       if (data && 'AI_5m' in data) {
         const aiStr = normalizeAIStr(data.AI_5m);
-        if (aiStr) {
-          window.AI_5M.set(String(t).toUpperCase(), aiStr);
-        }
-        // (optional) else: leave last-good value; don’t clear the cell
+        if (aiStr) window.AI_5M.set(String(t).toUpperCase(), aiStr);
+      }
+
+      // MA20 (5m)
+      if (isNum(data?.MA20_5m)) {
+        setMA20_5m(t, Number(data.MA20_5m));
       }
     }
 

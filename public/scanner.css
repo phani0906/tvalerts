@@ -570,4 +570,11 @@ table td {
 td[data-zone="green"] { color: #4caf50; }
 td[data-zone="red"]   { color: #ff5252; }
 
+.ai-blink {
+  animation: aiFlash 1s ease-in-out infinite alternate;
+}
 
+@keyframes aiFlash {
+  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.9); }
+  to   { box-shadow: 0 0 20px rgba(255, 0, 0, 0.9); }
+}

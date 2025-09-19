@@ -13,6 +13,9 @@
     BEAR_REV:  'Bearish Trend Reversal'
   };
 
+  // Remember last AI signal + change time for blink effect
+  const AI_LAST = new Map(); // ticker -> { signal, changedAt }
+
   // ===== Tolerance (from server) =====
   let TOL = { pivot_mid: 1.0 };
   (async function loadTol() {
@@ -182,7 +185,6 @@
           const span = document.createElement('span');
           span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
-          // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
           if (diff < -0.30)      span.className = 'diff-down';
           else if (diff >= 0)    span.className = 'diff-up';
           else                   span.className = 'diff-neutral';
@@ -192,20 +194,27 @@
         }
         tr.appendChild(td);
 
-        // --- AI 5 min (replaces PDH)
+        // --- AI 5 min (with blink on change)
         td = document.createElement('td');
         const ai = getAISignal(ticker);
         if (ai) {
           const chip = document.createElement('span');
           chip.textContent = ai;
           chip.className = `ai-chip ${ai === 'BUY' ? 'signal-buy' : 'signal-sell'}`;
+
+          // Blink if the signal just flipped in the last 5 minutes
+          const rec = AI_LAST.get(ticker.toUpperCase());
+          if (rec && rec.signal === ai && Date.now() - rec.changedAt <= 300000) {
+            chip.classList.add('ai-blink');
+          }
+
           td.appendChild(chip);
         } else {
           td.textContent = '';
         }
         tr.appendChild(td);
 
-        // --- MA20 (5m) with % diff to price + blink near zero
+        // --- MA20 (5m) with % diff to price + optional near-zero blink
         td = document.createElement('td');
         const ma5m = getMA20_5m(ticker);
         if (isNum(ma5m)) {
@@ -218,7 +227,7 @@
             span.className = diff >= 0 ? 'diff-up' : 'diff-down';
             td.appendChild(span);
 
-            // Blink when price ≈ MA20(5m) using same tolerance as Mid-point
+            // Blink near MA20 if desired (same tolerance used for Mid-point)
             applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
             td.textContent = fmt2(ma5m);
@@ -307,7 +316,7 @@
           td.appendChild(row);
 
           if (leftIdx !== -1 && rightIdx !== -1) {
-            const openPriceTd = tr.children[2]; // Open/Price column index (after PDH removal)
+            const openPriceTd = tr.children[2];
             const priceSpan = openPriceTd && openPriceTd.querySelector('span:last-child');
             if (priceSpan) priceSpan.classList.add('pivot-hl-price');
           }
@@ -382,10 +391,17 @@
         pdh: !!data.TouchPDH
       });
 
-      // AI 5m
+      // AI 5m with change detection (blink for 5 minutes on flip)
       if (data && 'AI_5m' in data) {
         const aiStr = normalizeAIStr(data.AI_5m);
-        if (aiStr) window.AI_5M.set(String(t).toUpperCase(), aiStr);
+        const key = String(t).toUpperCase();
+
+        const prev = AI_LAST.get(key);
+        if (!prev || prev.signal !== aiStr) {
+          AI_LAST.set(key, { signal: aiStr, changedAt: Date.now() });
+        }
+
+        if (aiStr) window.AI_5M.set(key, aiStr);
       }
 
       // MA20 (5m)

@@ -182,6 +182,7 @@
           const span = document.createElement('span');
           span.textContent = `${fmt2(midVal)} (${diff >= 0 ? '+' : ''}${fmt2(diff)})`;
 
+          // tolerance: only mark red if below -0.30; between -0.30 and 0 is neutral
           if (diff < -0.30)      span.className = 'diff-down';
           else if (diff >= 0)    span.className = 'diff-up';
           else                   span.className = 'diff-neutral';
@@ -204,16 +205,21 @@
         }
         tr.appendChild(td);
 
-        // --- MA20 (5m) with % diff to price
+        // --- MA20 (5m) with % diff to price + blink near zero
         td = document.createElement('td');
         const ma5m = getMA20_5m(ticker);
         if (isNum(ma5m)) {
           if (isNum(priceVal) && ma5m !== 0) {
-            const pct = ((priceVal - ma5m) / ma5m) * 100;
+            const diff = priceVal - ma5m;
+            const pct  = (diff / ma5m) * 100;
+
             const span = document.createElement('span');
-            span.textContent = `${fmt2(ma5m)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
-            span.className = pct >= 0 ? 'diff-up' : 'diff-down';
+            span.textContent = `${fmt2(ma5m)} (${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+            span.className = diff >= 0 ? 'diff-up' : 'diff-down';
             td.appendChild(span);
+
+            // Blink when price ≈ MA20(5m) using same tolerance as Mid-point
+            applyNearZeroBlink(td, diff, TOL.pivot_mid);
           } else {
             td.textContent = fmt2(ma5m);
           }
